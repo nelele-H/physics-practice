@@ -16,6 +16,8 @@ if (Test-Path -LiteralPath $OutputPath) {
 }
 
 tar.exe -czf $OutputPath `
+  --exclude=.git `
+  --exclude=xqj `
   --exclude=node_modules `
   --exclude=logs `
   --exclude=release `
