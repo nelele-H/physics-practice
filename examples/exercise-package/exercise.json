@@ -1,0 +1,10 @@
+{
+  "formatVersion": 1,
+  "slug": "topic2a-waves-demo",
+  "code": "2A-DEMO",
+  "title": "Topic 2A · Waves 波（示例）",
+  "subtitle": "波速、频率和波长",
+  "expectedPoints": 6,
+  "timeMinutes": 15,
+  "publishImmediately": false
+}

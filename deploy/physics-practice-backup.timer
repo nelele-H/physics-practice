@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Physics Practice database backup
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+RandomizedDelaySec=10m
+Unit=physics-practice-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,75 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>我的练习 · 小小物理站</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="shell topbar-inner">
+        <a class="brand" href="/student.html">
+          <span class="brand-mark">φ</span>
+          <span>小小物理站</span>
+        </a>
+        <div class="top-actions">
+          <span class="user-label helper" data-user-label></span>
+          <button class="button button-plain button-small" data-logout>退出</button>
+        </div>
+      </div>
+    </header>
+    <main class="shell main">
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">My practice</p>
+          <h1>今天想练哪一部分？</h1>
+          <p>不计时。教师开始批改前，你可以随时保存、修改或删除答案。</p>
+        </div>
+        <button id="password-toggle" class="button button-soft">修改密码</button>
+      </div>
+
+      <section id="password-panel" class="card card-pad hidden" style="margin-bottom: 24px">
+        <div class="section-heading">
+          <div>
+            <h2>修改密码</h2>
+            <p>修改成功后需要重新登录。</p>
+          </div>
+        </div>
+        <form id="password-form" class="split-grid">
+          <div class="field">
+            <label for="current-password">当前密码</label>
+            <input class="input" id="current-password" type="password" required />
+          </div>
+          <div class="field">
+            <label for="new-password">新密码</label>
+            <input class="input" id="new-password" type="password" minlength="6" required />
+          </div>
+          <button class="button button-primary" type="submit">保存新密码</button>
+        </form>
+      </section>
+
+      <section class="card card-pad search-panel" aria-labelledby="student-search-title">
+        <div class="search-panel-copy">
+          <h2 id="student-search-title">搜索练习</h2>
+          <p>可以输入练习编号、标题或副标题关键词。</p>
+        </div>
+        <div class="search-control">
+          <label class="sr-only" for="exercise-search">搜索练习</label>
+          <input
+            class="input"
+            id="exercise-search"
+            type="search"
+            placeholder="例如：1A、能量、动量"
+            autocomplete="off"
+          />
+          <span id="exercise-search-count" class="helper" aria-live="polite"></span>
+        </div>
+      </section>
+
+      <section id="summary" class="summary-grid" aria-label="练习概览"></section>
+      <section id="exercise-grid" class="exercise-grid" aria-live="polite"></section>
+    </main>
+    <script type="module" src="/assets/student.js"></script>
+  </body>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>教师工作台 · 小小物理站</title>
+    <link rel="stylesheet" href="/vendor/katex/katex.min.css" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="shell topbar-inner">
+        <a class="brand" href="/teacher.html">
+          <span class="brand-mark">φ</span>
+          <span>教师工作台</span>
+        </a>
+        <div class="top-actions">
+          <span class="user-label helper" data-user-label></span>
+          <button class="button button-plain button-small" data-logout>退出</button>
+        </div>
+      </div>
+    </header>
+    <main class="shell main">
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">Teacher desk</p>
+          <h1>批改和反馈，都放在这里。</h1>
+          <p>管理学生账号、练习题库、批改与逐题统计。</p>
+        </div>
+      </div>
+
+      <section class="card card-pad search-panel teacher-search-panel" aria-labelledby="teacher-search-title">
+        <div class="search-panel-copy">
+          <h2 id="teacher-search-title">搜索练习</h2>
+          <p>已发布、草稿和已下架练习都能搜索。</p>
+        </div>
+        <div class="search-control">
+          <label class="sr-only" for="teacher-exercise-search">搜索练习</label>
+          <input
+            class="input"
+            id="teacher-exercise-search"
+            type="search"
+            placeholder="输入编号、标题、副标题或 slug"
+            autocomplete="off"
+          />
+          <span id="teacher-exercise-search-count" class="helper" aria-live="polite"></span>
+        </div>
+        <div id="teacher-exercise-search-results" class="search-results hidden"></div>
+      </section>
+
+      <nav class="tabs" aria-label="教师功能">
+        <button class="button button-soft tab-button active" data-tab="students">学生账号</button>
+        <button class="button button-soft tab-button" data-tab="submissions">作答与批改</button>
+        <button class="button button-soft tab-button" data-tab="stats">逐题统计</button>
+        <button class="button button-soft tab-button" data-tab="exercises">题库管理</button>
+      </nav>
+
+      <section id="tab-students" class="tab-panel section-stack"></section>
+      <section id="tab-submissions" class="tab-panel section-stack hidden"></section>
+      <section id="tab-stats" class="tab-panel section-stack hidden"></section>
+      <section id="tab-exercises" class="tab-panel section-stack hidden"></section>
+    </main>
+    <script type="module" src="/assets/teacher.js"></script>
+  </body>
+</html>

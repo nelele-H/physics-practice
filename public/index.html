@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="物理专项练习、教师批改与成绩反馈" />
+    <title>小小物理站 · 登录</title>
+    <link rel="stylesheet" href="/vendor/katex/katex.min.css" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <main class="auth-page">
+      <section class="auth-layout">
+        <div class="auth-hero">
+          <span class="tiny-pill">✦ Topic 1 Mechanics</span>
+          <h1>慢慢想，认真写，物理会变得很可爱。</h1>
+          <p>
+            从运动、能量到动量，选择自己想完成的题目。教师开始批改前，你都可以继续修改答案。
+          </p>
+        </div>
+        <div class="auth-panel">
+          <p class="eyebrow">Welcome back</p>
+          <h2>登录练习站</h2>
+          <p>学生和教师使用同一个入口，系统会自动进入对应页面。</p>
+          <form id="login-form" class="form-grid">
+            <div class="field">
+              <label for="username">用户名</label>
+              <input
+                class="input"
+                id="username"
+                name="username"
+                autocomplete="username"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="password">密码</label>
+              <input
+                class="input"
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+              />
+            </div>
+            <div id="login-message" class="notice notice-error hidden" role="alert"></div>
+            <button class="button button-primary button-wide" type="submit">登录</button>
+          </form>
+          <div class="auth-links">
+            <a href="/activate.html">第一次使用？激活学生账号</a>
+            <span class="helper">测试版</span>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/assets/login.js"></script>
+  </body>
+</html>

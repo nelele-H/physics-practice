@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>激活学生账号 · 小小物理站</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <main class="auth-page">
+      <section class="auth-layout">
+        <div class="auth-hero">
+          <span class="tiny-pill">✿ Create your account</span>
+          <h1>给自己取一个好记的用户名。</h1>
+          <p>向教师领取一次性激活码。用户名只允许中文、字母、数字和下划线。</p>
+        </div>
+        <div class="auth-panel">
+          <p class="eyebrow">Student activation</p>
+          <h2>激活学生账号</h2>
+          <p>激活码只能使用一次。请设置一个只用于本练习站的密码。</p>
+          <form id="activate-form" class="form-grid">
+            <div class="field">
+              <label for="token">教师提供的激活码</label>
+              <input class="input" id="token" name="token" autocomplete="one-time-code" required />
+            </div>
+            <div class="field">
+              <label for="username">自定义用户名</label>
+              <input class="input" id="username" name="username" autocomplete="username" required />
+            </div>
+            <div class="field">
+              <label for="password">密码（至少 6 位）</label>
+              <input
+                class="input"
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                minlength="6"
+                required
+              />
+            </div>
+            <div id="activate-message" class="notice notice-error hidden" role="alert"></div>
+            <button class="button button-primary button-wide" type="submit">激活并登录</button>
+          </form>
+          <div class="auth-links">
+            <a href="/">返回登录</a>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/assets/activate.js"></script>
+  </body>
+</html>

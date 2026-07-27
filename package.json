@@ -1,0 +1,29 @@
+{
+  "name": "topic1-practice-portal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "轻量物理专项练习、批改与成绩反馈网站",
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "build:content": "node scripts/build-content.js",
+    "build:template": "node scripts/build-exercise-template.js",
+    "seed:teacher": "node scripts/seed-teacher.js",
+    "start": "node server/app.js",
+    "dev": "node --watch server/app.js",
+    "check": "node scripts/check-project.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/static": "^8.2.0",
+    "adm-zip": "^0.5.18",
+    "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^12.2.0",
+    "fastify": "^5.6.1",
+    "katex": "^0.16.22",
+    "markdown-it": "^14.1.0"
+  }
+}

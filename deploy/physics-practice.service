@@ -1,0 +1,33 @@
+[Unit]
+Description=Physics Practice Portal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=physics-practice
+Group=physics-practice
+WorkingDirectory=/opt/physics-practice
+EnvironmentFile=/etc/physics-practice/physics-practice.env
+ExecStart=/usr/bin/node server/app.js
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+KillSignal=SIGTERM
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/physics-practice
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target
