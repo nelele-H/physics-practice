@@ -16,6 +16,8 @@ bindLogout();
 
 let allExercises = [];
 let exerciseQuery = "";
+let exercisePage = 1;
+const EXERCISES_PER_PAGE = 6;
 
 const passwordPanel = document.querySelector("#password-panel");
 document.querySelector("#password-toggle").addEventListener("click", () => {
@@ -61,15 +63,55 @@ function matchesExercise(exercise, query) {
   ).includes(query);
 }
 
+function paginationMarkup(currentPage, totalPages) {
+  if (totalPages <= 1) return "";
+  const pageButtons = Array.from({ length: totalPages }, (_, index) => index + 1)
+    .map(
+      (page) => `
+        <button
+          class="button button-small ${page === currentPage ? "button-primary" : "button-soft"}"
+          type="button"
+          data-exercise-page="${page}"
+          aria-label="第 ${page} 页"
+          ${page === currentPage ? 'aria-current="page"' : ""}
+        >${page}</button>
+      `,
+    )
+    .join("");
+
+  return `
+    <button
+      class="button button-soft button-small"
+      type="button"
+      data-exercise-page="${currentPage - 1}"
+      ${currentPage === 1 ? "disabled" : ""}
+    >上一页</button>
+    <div class="pagination-pages">${pageButtons}</div>
+    <button
+      class="button button-soft button-small"
+      type="button"
+      data-exercise-page="${currentPage + 1}"
+      ${currentPage === totalPages ? "disabled" : ""}
+    >下一页</button>
+    <span class="pagination-status">第 ${currentPage} / ${totalPages} 页</span>
+  `;
+}
+
 function renderExercises() {
   const filtered = allExercises.filter((exercise) => matchesExercise(exercise, exerciseQuery));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / EXERCISES_PER_PAGE));
+  exercisePage = Math.min(Math.max(exercisePage, 1), totalPages);
+  const pageExercises = filtered.slice(
+    (exercisePage - 1) * EXERCISES_PER_PAGE,
+    exercisePage * EXERCISES_PER_PAGE,
+  );
   const count = document.querySelector("#exercise-search-count");
   count.textContent = exerciseQuery
-    ? `找到 ${filtered.length} 套，共 ${allExercises.length} 套`
-    : `共 ${allExercises.length} 套练习`;
+    ? `找到 ${filtered.length} 套，共 ${allExercises.length} 套${filtered.length ? ` · 第 ${exercisePage}/${totalPages} 页` : ""}`
+    : `共 ${allExercises.length} 套练习${allExercises.length ? ` · 第 ${exercisePage}/${totalPages} 页` : ""}`;
 
   document.querySelector("#exercise-grid").innerHTML = filtered.length
-    ? filtered
+    ? pageExercises
         .map((exercise) => {
           const status =
             exercise.status === "not_started" ? "not_started" : exercise.status || "draft";
@@ -103,6 +145,16 @@ function renderExercises() {
           <p>换一个更短的关键词试试，例如“1A”或“能量”。</p>
         </div>
       `;
+
+  const pagination = document.querySelector("#exercise-pagination");
+  pagination.innerHTML = filtered.length ? paginationMarkup(exercisePage, totalPages) : "";
+  pagination.querySelectorAll("[data-exercise-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      exercisePage = Number(button.dataset.exercisePage);
+      renderExercises();
+      document.querySelector("#exercise-grid").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
 }
 
 async function loadExercises() {
@@ -131,6 +183,7 @@ async function loadExercises() {
 
 document.querySelector("#exercise-search").addEventListener("input", (event) => {
   exerciseQuery = normalizeSearch(event.currentTarget.value);
+  exercisePage = 1;
   renderExercises();
 });
 

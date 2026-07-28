@@ -887,6 +887,10 @@ a {
   gap: 20px;
 }
 
+.section-stack > * {
+  min-width: 0;
+}
+
 .section-heading {
   display: flex;
   align-items: flex-start;
@@ -960,6 +964,36 @@ a {
   gap: 6px;
 }
 
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.pagination:empty {
+  display: none;
+}
+
+.pagination-pages {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.pagination-status {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pagination .button[aria-current="page"] {
+  pointer-events: none;
+}
+
 .review-list {
   display: grid;
   gap: 16px;
@@ -988,6 +1022,21 @@ a {
 
 .official-answer {
   background: var(--sage-soft);
+}
+
+.unanswered-label {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.unanswered-review {
+  align-content: center;
+  color: var(--muted);
+}
+
+.unanswered-review p {
+  margin: 0;
+  line-height: 1.6;
 }
 
 .review-controls {

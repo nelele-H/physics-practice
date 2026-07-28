@@ -876,8 +876,24 @@ app.delete(
 app.get("/api/teacher/users", { preHandler: requireTeacher }, async () => ({
   users: db
     .prepare(`
-      SELECT id, username, note, active, must_change_password, created_at, updated_at
-      FROM users WHERE role = 'student' ORDER BY username COLLATE NOCASE
+      SELECT
+        u.id, u.username, u.note, u.active, u.must_change_password, u.created_at, u.updated_at,
+        (SELECT COUNT(*) FROM attempts a WHERE a.user_id = u.id) AS attempt_count,
+        (
+          SELECT COUNT(*)
+          FROM responses r
+          JOIN attempts a ON a.id = r.attempt_id
+          WHERE a.user_id = u.id
+        ) AS response_count,
+        (
+          SELECT COUNT(*)
+          FROM grading_items g
+          JOIN attempts a ON a.id = g.attempt_id
+          WHERE a.user_id = u.id
+        ) AS grading_count
+      FROM users u
+      WHERE u.role = 'student'
+      ORDER BY u.username COLLATE NOCASE
     `)
     .all()
     .map((user) => ({
@@ -995,6 +1011,68 @@ app.post("/api/teacher/users/:id/logout", { preHandler: requireTeacher }, async 
   return { ok: true };
 });
 
+app.delete("/api/teacher/users/:id", { preHandler: requireTeacher }, async (request, reply) => {
+  const user = db
+    .prepare("SELECT id, username FROM users WHERE id = ? AND role = 'student'")
+    .get(request.params.id);
+  if (!user) return reply.code(404).send({ error: "找不到学生账号。" });
+  if (String(request.body?.confirmation ?? "") !== user.username) {
+    return reply.code(400).send({ error: "确认文字与学生用户名不一致。" });
+  }
+
+  const counts = {
+    attempts: db
+      .prepare("SELECT COUNT(*) AS count FROM attempts WHERE user_id = ?")
+      .get(user.id).count,
+    responses: db
+      .prepare(`
+        SELECT COUNT(*) AS count
+        FROM responses r
+        JOIN attempts a ON a.id = r.attempt_id
+        WHERE a.user_id = ?
+      `)
+      .get(user.id).count,
+    grades: db
+      .prepare(`
+        SELECT COUNT(*) AS count
+        FROM grading_items g
+        JOIN attempts a ON a.id = g.attempt_id
+        WHERE a.user_id = ?
+      `)
+      .get(user.id).count,
+  };
+
+  const backupDirectory =
+    process.env.BACKUP_DIR || path.join(path.dirname(databasePath), "backups");
+  fs.mkdirSync(backupDirectory, { recursive: true, mode: 0o700 });
+  const backupBase = `practice-before-delete-student-${user.id}-${Date.now()}.sqlite`;
+  const uncompressedBackup = path.join(backupDirectory, backupBase);
+  const backupName = `${backupBase}.gz`;
+  await db.backup(uncompressedBackup);
+  fs.writeFileSync(
+    path.join(backupDirectory, backupName),
+    zlib.gzipSync(fs.readFileSync(uncompressedBackup), { level: 9 }),
+    { mode: 0o600 },
+  );
+  fs.rmSync(uncompressedBackup, { force: true });
+
+  const deleteTransaction = db.transaction(() => {
+    db.prepare("DELETE FROM users WHERE id = ?").run(user.id);
+    audit(request.user.id, "permanently_delete_student", "user", user.id, {
+      username: user.username,
+      ...counts,
+    });
+  });
+  deleteTransaction();
+
+  return {
+    ok: true,
+    deleted: user.username,
+    counts,
+    backup: backupName,
+  };
+});
+
 app.get("/api/teacher/attempts", { preHandler: requireTeacher }, async (request) => {
   const exerciseId = Number(request.query?.exerciseId);
   const attempts = db
@@ -1010,7 +1088,6 @@ app.get("/api/teacher/attempts", { preHandler: requireTeacher }, async (request)
       LEFT JOIN questions q ON q.id = r.question_id
       WHERE a.exercise_id = ?
       GROUP BY a.id
-      HAVING COUNT(r.id) > 0
       ORDER BY
         CASE a.status WHEN 'grading' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END,
         a.updated_at DESC
@@ -1129,23 +1206,26 @@ app.get(
     const items = db
       .prepare(`
         SELECT
-          r.question_id, r.answer_text, r.updated_at AS answer_updated_at,
+          q.id AS question_id, r.answer_text, r.updated_at AS answer_updated_at,
           q.label, q.title, q.type,
-          CASE WHEN a.text_answers_json IS NOT NULL THEN 'text' ELSE q.input_mode END AS input_mode,
+          CASE WHEN ak.text_answers_json IS NOT NULL THEN 'text' ELSE q.input_mode END AS input_mode,
           q.max_points, q.prompt_html, q.sort_order,
-          a.answer_html, a.required_decimals, a.unit_label,
+          ak.answer_html, ak.required_decimals, ak.unit_label,
+          CASE WHEN r.id IS NULL THEN 0 ELSE 1 END AS answered,
           g.score, g.is_correct, g.comment
-        FROM responses r
-        JOIN questions q ON q.id = r.question_id
-        JOIN answer_keys a ON a.question_id = r.question_id
+        FROM questions q
+        JOIN answer_keys ak ON ak.question_id = q.id
+        LEFT JOIN responses r
+          ON r.attempt_id = ? AND r.question_id = q.id AND TRIM(r.answer_text) <> ''
         LEFT JOIN grading_items g
-          ON g.attempt_id = r.attempt_id AND g.question_id = r.question_id
-        WHERE r.attempt_id = ? AND TRIM(r.answer_text) <> ''
+          ON g.attempt_id = ? AND g.question_id = q.id
+        WHERE q.exercise_id = ?
         ORDER BY q.sort_order
       `)
-      .all(attempt.id)
+      .all(attempt.id, attempt.id, attempt.exercise_id)
       .map((item) => ({
         ...item,
+        answered: Boolean(item.answered),
         is_correct: item.is_correct === null ? null : Boolean(item.is_correct),
       }));
     return {
