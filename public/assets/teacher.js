@@ -670,13 +670,6 @@ function paginationMarkup(currentPage, totalPages) {
           `,
     )
     .join("");
-  const pageOptions = Array.from({ length: totalPages }, (_, index) => index + 1)
-    .map(
-      (page) =>
-        `<option value="${page}" ${page === currentPage ? "selected" : ""}>第 ${page} 页</option>`,
-    )
-    .join("");
-
   return `
     <button
       class="button button-soft button-small"
@@ -691,12 +684,23 @@ function paginationMarkup(currentPage, totalPages) {
       data-managed-page="${currentPage + 1}"
       ${currentPage === totalPages ? "disabled" : ""}
     >下一页</button>
-    <label class="pagination-jump">
-      <span>跳至</span>
-      <select class="select pagination-select" data-managed-page-select aria-label="选择页码">
-        ${pageOptions}
-      </select>
-    </label>
+    <form class="pagination-jump" data-managed-page-jump>
+      <label for="managed-page-input">跳至第</label>
+      <input
+        class="input pagination-input"
+        id="managed-page-input"
+        data-managed-page-input
+        type="number"
+        inputmode="numeric"
+        min="1"
+        max="${totalPages}"
+        value="${currentPage}"
+        aria-label="输入要跳转的页码"
+        required
+      />
+      <span>页</span>
+      <button class="button button-soft button-small" type="submit">跳转</button>
+    </form>
     <span class="pagination-status">第 ${currentPage} / ${totalPages} 页</span>
   `;
 }
@@ -828,8 +832,11 @@ function renderExerciseManagement() {
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
-  panel.querySelector("[data-managed-page-select]")?.addEventListener("change", (event) => {
-    managedExercisePage = Number(event.currentTarget.value);
+  panel.querySelector("[data-managed-page-jump]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const input = event.currentTarget.querySelector("[data-managed-page-input]");
+    if (!input.reportValidity()) return;
+    managedExercisePage = Math.min(totalPages, Math.max(1, Number.parseInt(input.value, 10)));
     renderExerciseManagement();
     document
       .querySelector("#tab-exercises .data-table")

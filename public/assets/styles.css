@@ -1002,11 +1002,11 @@ a {
   font-weight: 700;
 }
 
-.pagination-select {
-  width: auto;
-  min-width: 86px;
+.pagination-input {
+  width: 64px;
   min-height: 34px;
-  padding: 5px 30px 5px 10px;
+  padding: 5px 8px;
+  text-align: center;
 }
 
 .pagination-status {

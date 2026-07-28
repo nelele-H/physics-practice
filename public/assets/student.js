@@ -92,13 +92,6 @@ function paginationMarkup(currentPage, totalPages) {
           `,
     )
     .join("");
-  const pageOptions = Array.from({ length: totalPages }, (_, index) => index + 1)
-    .map(
-      (page) =>
-        `<option value="${page}" ${page === currentPage ? "selected" : ""}>第 ${page} 页</option>`,
-    )
-    .join("");
-
   return `
     <button
       class="button button-soft button-small"
@@ -113,12 +106,23 @@ function paginationMarkup(currentPage, totalPages) {
       data-exercise-page="${currentPage + 1}"
       ${currentPage === totalPages ? "disabled" : ""}
     >下一页</button>
-    <label class="pagination-jump">
-      <span>跳至</span>
-      <select class="select pagination-select" data-exercise-page-select aria-label="选择页码">
-        ${pageOptions}
-      </select>
-    </label>
+    <form class="pagination-jump" data-exercise-page-jump>
+      <label for="exercise-page-input">跳至第</label>
+      <input
+        class="input pagination-input"
+        id="exercise-page-input"
+        data-exercise-page-input
+        type="number"
+        inputmode="numeric"
+        min="1"
+        max="${totalPages}"
+        value="${currentPage}"
+        aria-label="输入要跳转的页码"
+        required
+      />
+      <span>页</span>
+      <button class="button button-soft button-small" type="submit">跳转</button>
+    </form>
     <span class="pagination-status">第 ${currentPage} / ${totalPages} 页</span>
   `;
 }
@@ -181,8 +185,11 @@ function renderExercises() {
       document.querySelector("#exercise-grid").scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
-  pagination.querySelector("[data-exercise-page-select]")?.addEventListener("change", (event) => {
-    exercisePage = Number(event.currentTarget.value);
+  pagination.querySelector("[data-exercise-page-jump]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const input = event.currentTarget.querySelector("[data-exercise-page-input]");
+    if (!input.reportValidity()) return;
+    exercisePage = Math.min(totalPages, Math.max(1, Number.parseInt(input.value, 10)));
     renderExercises();
     document.querySelector("#exercise-grid").scrollIntoView({ behavior: "smooth", block: "start" });
   });
