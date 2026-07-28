@@ -980,8 +980,33 @@ a {
 .pagination-pages {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
   gap: 6px;
+}
+
+.pagination-ellipsis {
+  min-width: 24px;
+  color: var(--muted);
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.pagination-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pagination-select {
+  width: auto;
+  min-width: 86px;
+  min-height: 34px;
+  padding: 5px 30px 5px 10px;
 }
 
 .pagination-status {

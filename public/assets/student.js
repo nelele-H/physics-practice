@@ -63,19 +63,39 @@ function matchesExercise(exercise, query) {
   ).includes(query);
 }
 
+function compactPageItems(currentPage, totalPages) {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+  if (currentPage <= 3) return [1, 2, 3, 4, "ellipsis", totalPages];
+  if (currentPage >= totalPages - 2) {
+    return [1, "ellipsis", totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+  return [1, "ellipsis", currentPage - 1, currentPage, currentPage + 1, "ellipsis", totalPages];
+}
+
 function paginationMarkup(currentPage, totalPages) {
   if (totalPages <= 1) return "";
-  const pageButtons = Array.from({ length: totalPages }, (_, index) => index + 1)
+  const pageButtons = compactPageItems(currentPage, totalPages)
     .map(
-      (page) => `
-        <button
-          class="button button-small ${page === currentPage ? "button-primary" : "button-soft"}"
-          type="button"
-          data-exercise-page="${page}"
-          aria-label="第 ${page} 页"
-          ${page === currentPage ? 'aria-current="page"' : ""}
-        >${page}</button>
-      `,
+      (page) =>
+        page === "ellipsis"
+          ? '<span class="pagination-ellipsis" aria-hidden="true">…</span>'
+          : `
+            <button
+              class="button button-small ${page === currentPage ? "button-primary" : "button-soft"}"
+              type="button"
+              data-exercise-page="${page}"
+              aria-label="第 ${page} 页"
+              ${page === currentPage ? 'aria-current="page"' : ""}
+            >${page}</button>
+          `,
+    )
+    .join("");
+  const pageOptions = Array.from({ length: totalPages }, (_, index) => index + 1)
+    .map(
+      (page) =>
+        `<option value="${page}" ${page === currentPage ? "selected" : ""}>第 ${page} 页</option>`,
     )
     .join("");
 
@@ -93,6 +113,12 @@ function paginationMarkup(currentPage, totalPages) {
       data-exercise-page="${currentPage + 1}"
       ${currentPage === totalPages ? "disabled" : ""}
     >下一页</button>
+    <label class="pagination-jump">
+      <span>跳至</span>
+      <select class="select pagination-select" data-exercise-page-select aria-label="选择页码">
+        ${pageOptions}
+      </select>
+    </label>
     <span class="pagination-status">第 ${currentPage} / ${totalPages} 页</span>
   `;
 }
@@ -154,6 +180,11 @@ function renderExercises() {
       renderExercises();
       document.querySelector("#exercise-grid").scrollIntoView({ behavior: "smooth", block: "start" });
     });
+  });
+  pagination.querySelector("[data-exercise-page-select]")?.addEventListener("change", (event) => {
+    exercisePage = Number(event.currentTarget.value);
+    renderExercises();
+    document.querySelector("#exercise-grid").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 }
 
