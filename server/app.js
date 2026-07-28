@@ -229,6 +229,47 @@ function parseNumericAnswer(value) {
   };
 }
 
+function normalizeTextAnswer(value, caseSensitive = true) {
+  const normalized = String(value ?? "").normalize("NFC").trim().replace(/\s+/g, " ");
+  return caseSensitive ? normalized : normalized.toLocaleLowerCase("de");
+}
+
+function parseTextResponse(value, blankCount) {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(value ?? ""));
+  } catch {
+    return null;
+  }
+  if (
+    !Array.isArray(parsed) ||
+    parsed.length !== blankCount ||
+    parsed.some((entry) => typeof entry !== "string" || !entry.trim() || entry.length > 200)
+  ) {
+    return null;
+  }
+  return parsed.map((entry) => entry.trim());
+}
+
+function textResponseIsCorrect(value, answerJson, caseSensitive) {
+  let accepted;
+  try {
+    accepted = JSON.parse(answerJson);
+  } catch {
+    return false;
+  }
+  if (!Array.isArray(accepted)) return false;
+  const response = parseTextResponse(value, accepted.length);
+  if (!response) return false;
+  return response.every((entry, index) => {
+    const alternatives = Array.isArray(accepted[index]) ? accepted[index] : [];
+    const normalizedEntry = normalizeTextAnswer(entry, caseSensitive);
+    return alternatives.some(
+      (answer) => normalizeTextAnswer(answer, caseSensitive) === normalizedEntry,
+    );
+  });
+}
+
 function removeImportedExerciseFiles(slug) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return;
   fs.rmSync(path.join(exerciseAssetsRoot, slug), { recursive: true, force: true });
@@ -484,9 +525,10 @@ app.post(
         INSERT INTO answer_keys
           (
             question_id, correct_value, answer_html, numeric_value,
-            numeric_tolerance, required_decimals, unit_label
+            numeric_tolerance, required_decimals, unit_label,
+            text_answers_json, text_case_sensitive
           )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (const question of exercise.questions) {
         insertQuestion.run(
@@ -496,7 +538,7 @@ app.post(
           question.parentNumber,
           question.title,
           question.type,
-          question.inputMode,
+          question.inputMode === "text" ? "manual" : question.inputMode,
           question.maxPoints,
           question.promptHtml,
           JSON.stringify(question.options),
@@ -510,6 +552,8 @@ app.post(
           question.numericTolerance,
           question.requiredDecimals,
           question.unitLabel,
+          question.textAnswers ? JSON.stringify(question.textAnswers) : null,
+          question.textCaseSensitive === false ? 0 : 1,
         );
       }
       return exerciseId;
@@ -526,7 +570,7 @@ app.post(
     }
 
     const modes = Object.fromEntries(
-      ["mcq", "numeric", "manual"].map((mode) => [
+      ["mcq", "numeric", "text", "manual"].map((mode) => [
         mode,
         exercise.questions.filter((question) => question.inputMode === mode).length,
       ]),
@@ -652,17 +696,30 @@ app.get("/api/exercises/:slug", { preHandler: requireStudent }, async (request, 
       SELECT
         q.id, q.label, q.parent_number, q.title, q.type, q.input_mode,
         q.max_points, q.prompt_html, q.options_json, q.sort_order,
-        a.required_decimals, a.unit_label
+        a.required_decimals, a.unit_label, a.text_answers_json
       FROM questions q
       JOIN answer_keys a ON a.question_id = q.id
       WHERE q.exercise_id = ? ORDER BY q.sort_order
     `)
     .all(exercise.id)
-    .map((question) => ({
-      ...question,
-      options: JSON.parse(question.options_json),
-      options_json: undefined,
-    }));
+    .map((question) => {
+      let blankCount = null;
+      if (question.text_answers_json) {
+        try {
+          blankCount = JSON.parse(question.text_answers_json).length;
+        } catch {
+          blankCount = null;
+        }
+      }
+      return {
+        ...question,
+        input_mode: blankCount ? "text" : question.input_mode,
+        blank_count: blankCount,
+        options: JSON.parse(question.options_json),
+        options_json: undefined,
+        text_answers_json: undefined,
+      };
+    });
   const responseRows = db
     .prepare("SELECT question_id, answer_text, updated_at FROM responses WHERE attempt_id = ?")
     .all(attempt.id);
@@ -736,7 +793,9 @@ app.put(
     }
     const question = db
       .prepare(`
-        SELECT q.id, q.input_mode, a.required_decimals
+        SELECT
+          q.id, q.input_mode, a.required_decimals,
+          a.text_answers_json, a.text_case_sensitive
         FROM questions q
         JOIN answer_keys a ON a.question_id = q.id
         WHERE q.id = ? AND q.exercise_id = ?
@@ -764,6 +823,22 @@ app.put(
       if (parsed.decimals !== question.required_decimals) {
         return reply.code(400).send({
           error: `这道题要求保留 ${question.required_decimals} 位小数。`,
+        });
+      }
+    }
+    if (question.text_answers_json) {
+      let accepted;
+      try {
+        accepted = JSON.parse(question.text_answers_json);
+      } catch {
+        accepted = null;
+      }
+      const parsed = Array.isArray(accepted)
+        ? parseTextResponse(answer, accepted.length)
+        : null;
+      if (!parsed) {
+        return reply.code(400).send({
+          error: "请在每个空格中只填写缺少的词或词组，不能留空。",
         });
       }
     }
@@ -962,7 +1037,8 @@ app.post("/api/teacher/attempts/lock", { preHandler: requireTeacher }, async (re
       .prepare(`
         SELECT
           r.question_id, r.answer_text, q.type, q.input_mode, q.max_points,
-          a.correct_value, a.numeric_value, a.numeric_tolerance, a.required_decimals
+          a.correct_value, a.numeric_value, a.numeric_tolerance, a.required_decimals,
+          a.text_answers_json, a.text_case_sensitive
         FROM responses r
         JOIN questions q ON q.id = r.question_id
         JOIN answer_keys a ON a.question_id = r.question_id
@@ -1013,6 +1089,20 @@ app.post("/api/teacher/attempts/lock", { preHandler: requireTeacher }, async (re
           timestamp,
         );
       }
+      if (response.text_answers_json) {
+        const correct = textResponseIsCorrect(
+          response.answer_text,
+          response.text_answers_json,
+          Boolean(response.text_case_sensitive),
+        );
+        upsertGrade.run(
+          attemptId,
+          response.question_id,
+          correct ? response.max_points : 0,
+          correct ? 1 : 0,
+          timestamp,
+        );
+      }
     }
     audit(request.user.id, "lock_attempt", "attempt", attemptId, { maxScore });
     return { id: attemptId, ok: true, message: "已锁定" };
@@ -1040,7 +1130,9 @@ app.get(
       .prepare(`
         SELECT
           r.question_id, r.answer_text, r.updated_at AS answer_updated_at,
-          q.label, q.title, q.type, q.input_mode, q.max_points, q.prompt_html, q.sort_order,
+          q.label, q.title, q.type,
+          CASE WHEN a.text_answers_json IS NOT NULL THEN 'text' ELSE q.input_mode END AS input_mode,
+          q.max_points, q.prompt_html, q.sort_order,
           a.answer_html, a.required_decimals, a.unit_label,
           g.score, g.is_correct, g.comment
         FROM responses r
@@ -1079,11 +1171,12 @@ app.put(
     const timestamp = nowIso();
     const saveTransaction = db.transaction(() => {
       const questionLookup = db.prepare(`
-        SELECT q.id, q.max_points, q.input_mode, g.score AS automatic_score
+        SELECT
+          q.id, q.max_points,
+          CASE WHEN ak.text_answers_json IS NOT NULL THEN 'text' ELSE q.input_mode END AS input_mode
         FROM responses r
         JOIN questions q ON q.id = r.question_id
-        LEFT JOIN grading_items g
-          ON g.attempt_id = r.attempt_id AND g.question_id = r.question_id
+        JOIN answer_keys ak ON ak.question_id = q.id
         WHERE r.attempt_id = ? AND q.id = ?
       `);
       const upsert = db.prepare(`
@@ -1099,8 +1192,7 @@ app.put(
       for (const grade of grades) {
         const question = questionLookup.get(attempt.id, grade.questionId);
         if (!question) continue;
-        const score =
-          question.input_mode === "manual" ? Number(grade.score) : question.automatic_score;
+        const score = Number(grade.score);
         if (!Number.isFinite(score) || score < 0 || score > question.max_points) {
           throw new Error(`题目 ${grade.questionId} 的得分无效。`);
         }

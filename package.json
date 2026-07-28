@@ -8,6 +8,7 @@
   "scripts": {
     "build:content": "node scripts/build-content.js",
     "build:template": "node scripts/build-exercise-template.js",
+    "replace:exercise": "node scripts/replace-exercise-package.js",
     "seed:teacher": "node scripts/seed-teacher.js",
     "start": "node server/app.js",
     "dev": "node --watch server/app.js",

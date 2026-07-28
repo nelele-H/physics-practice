@@ -94,7 +94,9 @@ export function initializeDatabase() {
       numeric_value REAL,
       numeric_tolerance REAL,
       required_decimals INTEGER,
-      unit_label TEXT
+      unit_label TEXT,
+      text_answers_json TEXT,
+      text_case_sensitive INTEGER NOT NULL DEFAULT 1
     );
 
     CREATE TABLE IF NOT EXISTS attempts (
@@ -153,6 +155,8 @@ export function initializeDatabase() {
   ensureColumn("answer_keys", "numeric_tolerance", "REAL");
   ensureColumn("answer_keys", "required_decimals", "INTEGER");
   ensureColumn("answer_keys", "unit_label", "TEXT");
+  ensureColumn("answer_keys", "text_answers_json", "TEXT");
+  ensureColumn("answer_keys", "text_case_sensitive", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn("exercises", "source_type", "TEXT NOT NULL DEFAULT 'built_in'");
 
   seedExerciseContent();
@@ -208,16 +212,24 @@ export function seedExerciseContent() {
 
   const upsertAnswer = db.prepare(`
     INSERT INTO answer_keys
-      (question_id, correct_value, answer_html, numeric_value, numeric_tolerance, required_decimals, unit_label)
+      (
+        question_id, correct_value, answer_html, numeric_value, numeric_tolerance,
+        required_decimals, unit_label, text_answers_json, text_case_sensitive
+      )
     VALUES
-      (@questionId, @correctValue, @answerHtml, @numericValue, @numericTolerance, @requiredDecimals, @unitLabel)
+      (
+        @questionId, @correctValue, @answerHtml, @numericValue, @numericTolerance,
+        @requiredDecimals, @unitLabel, @textAnswersJson, @textCaseSensitive
+      )
     ON CONFLICT(question_id) DO UPDATE SET
       correct_value = excluded.correct_value,
       answer_html = excluded.answer_html,
       numeric_value = excluded.numeric_value,
       numeric_tolerance = excluded.numeric_tolerance,
       required_decimals = excluded.required_decimals,
-      unit_label = excluded.unit_label
+      unit_label = excluded.unit_label,
+      text_answers_json = excluded.text_answers_json,
+      text_case_sensitive = excluded.text_case_sensitive
   `);
 
   const transaction = db.transaction(() => {
@@ -246,6 +258,10 @@ export function seedExerciseContent() {
           numericTolerance: question.numericTolerance,
           requiredDecimals: question.requiredDecimals,
           unitLabel: question.unitLabel,
+          textAnswersJson: question.textAnswers
+            ? JSON.stringify(question.textAnswers)
+            : null,
+          textCaseSensitive: question.textCaseSensitive === false ? 0 : 1,
         });
       }
     }

@@ -772,6 +772,36 @@ a {
   margin-top: 20px;
 }
 
+.inline-blank-input {
+  display: inline-block;
+  width: clamp(7.5rem, 18vw, 13rem);
+  min-height: 38px;
+  margin: 3px 5px;
+  padding: 6px 10px;
+  border: 1px solid var(--purple-300);
+  border-radius: 9px;
+  outline: none;
+  color: var(--ink);
+  background: var(--white);
+  font: inherit;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+
+.inline-blank-input:focus {
+  border-color: var(--purple-700);
+  box-shadow: 0 0 0 3px rgba(101, 89, 109, 0.12);
+}
+
+.inline-blank-input:disabled {
+  color: var(--muted);
+  background: var(--purple-050);
+}
+
+.inline-blank-help {
+  margin-top: 12px;
+}
+
 .numeric-rules {
   display: flex;
   flex-wrap: wrap;

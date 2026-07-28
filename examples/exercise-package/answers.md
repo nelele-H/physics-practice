@@ -25,3 +25,9 @@ Scoring:
 - 1 分：写出 `v=fλ`；
 - 1 分：指出波速不变；
 - 1 分：说明频率增大时波长减小。
+
+### Question 3 {id=q3}
+
+Correct-Text: [["波长", "wavelength"], ["f"]]
+
+第一个空允许填写“波长”或 “wavelength”，第二个空填写 `f`。

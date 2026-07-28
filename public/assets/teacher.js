@@ -41,6 +41,21 @@ function normalizeSearch(value) {
     .trim();
 }
 
+function formatStudentAnswer(item) {
+  if (item.input_mode !== "text") return escapeHtml(item.answer_text);
+  try {
+    const values = JSON.parse(item.answer_text);
+    if (Array.isArray(values)) {
+      return values
+        .map((value, index) => `<strong>空 ${index + 1}：</strong>${escapeHtml(value)}`)
+        .join("<br />");
+    }
+  } catch {
+    // 兼容旧版未使用 JSON 保存的文本答案。
+  }
+  return escapeHtml(item.answer_text);
+}
+
 function matchesExercise(exercise, query) {
   if (!query) return true;
   return normalizeSearch(
@@ -430,14 +445,14 @@ function renderReview() {
                 <div>
                   <div class="question-number"><strong>第 ${escapeHtml(item.label)} 题</strong><span class="points">${formatNumber(item.max_points)} 分</span></div>
                   <div class="markdown">${item.prompt_html}</div>
-                  <div class="student-answer"><strong>学生答案</strong><p>${escapeHtml(item.answer_text)}</p></div>
+                  <div class="student-answer"><strong>学生答案</strong><p>${formatStudentAnswer(item)}</p></div>
                   <div class="official-answer"><strong>参考答案与评分要点</strong><div class="markdown">${item.answer_html}</div></div>
                 </div>
                 <div class="review-controls">
                   <div class="field">
                     <label>得分（满分 ${formatNumber(item.max_points)}）</label>
                     <div class="score-row">
-                      <input class="input" data-score type="number" min="0" max="${item.max_points}" step="0.5" value="${item.score ?? ""}" ${editable && item.input_mode === "manual" ? "" : "disabled"} />
+                      <input class="input" data-score type="number" min="0" max="${item.max_points}" step="0.5" value="${item.score ?? ""}" ${editable ? "" : "disabled"} />
                       <span>分</span>
                     </div>
                   </div>
@@ -447,10 +462,12 @@ function renderReview() {
                   </div>
                   <span class="helper">${
                     item.input_mode === "mcq"
-                      ? "选择题只按答案对错自动给满分或 0 分，分数不可手动修改。"
+                      ? "选择题已由系统自动给分；如答案设置有误，教师可人工修改。"
                       : item.input_mode === "numeric"
-                        ? `数值填空只按答案对错自动给满分或 0 分，分数不可手动修改。指定单位 ${escapeHtml(item.unit_label)}，保留 ${item.required_decimals} 位小数。`
-                        : "问答解释题由教师给分。"
+                        ? `数值填空已由系统自动给分，教师可人工修改。指定单位 ${escapeHtml(item.unit_label)}，保留 ${item.required_decimals} 位小数。`
+                        : item.input_mode === "text"
+                          ? "文本填空已由系统逐空自动给分；如参考答案不完整，教师可人工修改。"
+                          : "问答解释题由教师给分。"
                   }</span>
                 </div>
               </section>
@@ -718,7 +735,8 @@ async function handleExerciseUpload(event) {
       <strong>导入成功：${escapeHtml(imported.title)}</strong><br />
       <span class="helper">
         ${imported.questionCount} 题，${formatNumber(imported.totalPoints)} 分；
-        选择 ${imported.modes.mcq}，数值填空 ${imported.modes.numeric}，主观 ${imported.modes.manual}。
+        选择 ${imported.modes.mcq}，数值填空 ${imported.modes.numeric}，
+        文本填空 ${imported.modes.text}，主观 ${imported.modes.manual}。
       </span>
     `;
     form.reset();

@@ -28,3 +28,10 @@ The wave has frequency `5.0 Hz` and wavelength `2.4 m`. Calculate its speed.
 
 解释波速不变时，频率增大会怎样影响波长。  
 Explain how increasing frequency affects wavelength when wave speed is constant.
+
+## Section C Text Fill-in Questions
+
+### Question 3 [2] {id=q3 type=text case-sensitive=false}
+
+在同一种介质中，波速等于频率乘以 ___；符号公式为 `v = ___ λ`。
+Complete both blanks in the Chinese sentence above.

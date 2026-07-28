@@ -64,8 +64,8 @@ function validateLeafAttributes(attributes, label) {
   if (!attributes.id || !/^[a-z][a-z0-9_-]{0,39}$/.test(attributes.id)) {
     fail(`${label} 缺少有效 id；格式示例：{id=q2a type=numeric ...}`);
   }
-  if (!["mcq", "numeric", "manual"].includes(attributes.type)) {
-    fail(`${label} 的 type 必须是 mcq、numeric 或 manual。`);
+  if (!["mcq", "numeric", "text", "manual"].includes(attributes.type)) {
+    fail(`${label} 的 type 必须是 mcq、numeric、text 或 manual。`);
   }
 }
 
@@ -172,6 +172,8 @@ function buildLeaf({
       numericTolerance: null,
       requiredDecimals: null,
       unitLabel: null,
+      textAnswers: null,
+      textCaseSensitive: true,
       answerHtml,
       sortOrder,
     };
@@ -212,6 +214,66 @@ function buildLeaf({
       numericTolerance: tolerance,
       requiredDecimals,
       unitLabel: unit,
+      textAnswers: null,
+      textCaseSensitive: true,
+      answerHtml,
+      sortOrder,
+    };
+  }
+
+  if (attributes.type === "text") {
+    const blankCount = (promptMarkdown.match(/___/g) ?? []).length;
+    if (!blankCount) fail(`第 ${label} 题是文本填空题，但题干中没有 ___ 空格。`);
+    const correctLine = answerMarkdown.match(/^Correct-Text:\s*(.+?)\s*$/im)?.[1];
+    if (!correctLine) {
+      fail(`第 ${label} 题的答案必须包含单行 Correct-Text: JSON 数组。`);
+    }
+    let parsedAnswers;
+    try {
+      parsedAnswers = JSON.parse(correctLine);
+    } catch {
+      fail(`第 ${label} 题的 Correct-Text 必须是有效 JSON 数组。`);
+    }
+    if (!Array.isArray(parsedAnswers) || parsedAnswers.length !== blankCount) {
+      fail(`第 ${label} 题有 ${blankCount} 个空，Correct-Text 必须提供同样数量的答案。`);
+    }
+    const textAnswers = parsedAnswers.map((entry, index) => {
+      const alternatives = Array.isArray(entry) ? entry : [entry];
+      const normalized = alternatives
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean);
+      if (!normalized.length || normalized.some((value) => value.length > 200)) {
+        fail(`第 ${label} 题第 ${index + 1} 个空的允许答案无效。`);
+      }
+      return [...new Set(normalized)];
+    });
+    const caseSensitive =
+      attributes["case-sensitive"] === undefined
+        ? true
+        : String(attributes["case-sensitive"]).toLowerCase() === "true";
+    if (
+      attributes["case-sensitive"] !== undefined &&
+      !["true", "false"].includes(String(attributes["case-sensitive"]).toLowerCase())
+    ) {
+      fail(`第 ${label} 题的 case-sensitive 只能是 true 或 false。`);
+    }
+    return {
+      id: fullId,
+      label,
+      parentNumber: number,
+      title,
+      type: "manual",
+      inputMode: "text",
+      maxPoints: points,
+      promptHtml: renderMarkdown(rewriteAssetLinks(promptMarkdown, slug)),
+      options: [],
+      correctValue: null,
+      numericValue: null,
+      numericTolerance: null,
+      requiredDecimals: null,
+      unitLabel: null,
+      textAnswers,
+      textCaseSensitive: caseSensitive,
       answerHtml,
       sortOrder,
     };
@@ -232,6 +294,8 @@ function buildLeaf({
     numericTolerance: null,
     requiredDecimals: null,
     unitLabel: null,
+    textAnswers: null,
+    textCaseSensitive: true,
     answerHtml,
     sortOrder,
   };

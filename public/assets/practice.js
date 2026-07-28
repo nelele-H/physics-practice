@@ -52,6 +52,37 @@ function renderResult(question) {
   `;
 }
 
+function textResponseValues(question) {
+  const response = data.responses[question.id]?.answer ?? "";
+  try {
+    const values = JSON.parse(response);
+    if (Array.isArray(values)) return values.map((value) => String(value ?? ""));
+  } catch {
+    // 旧版文本答案不是 JSON 时，仅放入第一个空格，方便学生重新保存。
+  }
+  return response ? [response] : [];
+}
+
+function renderPrompt(question, locked) {
+  if (question.input_mode !== "text") return question.prompt_html;
+  const values = textResponseValues(question);
+  let blankIndex = 0;
+  return question.prompt_html.replaceAll("___", () => {
+    const index = blankIndex++;
+    return `<input
+      class="inline-blank-input"
+      data-text-answer
+      data-blank-index="${index}"
+      aria-label="第 ${index + 1} 个空"
+      maxlength="200"
+      autocomplete="off"
+      ${locked ? "disabled" : ""}
+      value="${escapeHtml(values[index] ?? "")}"
+      placeholder="填写此空"
+    />`;
+  });
+}
+
 function renderInput(question, locked) {
   const response = data.responses[question.id]?.answer ?? "";
   if (question.input_mode === "mcq") {
@@ -100,6 +131,13 @@ function renderInput(question, locked) {
       </div>
     `;
   }
+  if (question.input_mode === "text") {
+    return `
+      <div class="answer-area inline-blank-help">
+        <span class="helper">每个输入框只填写对应空格中缺少的词或词组，不要重复整句。</span>
+      </div>
+    `;
+  }
   return `
     <div class="answer-area">
       <label class="field">
@@ -142,7 +180,7 @@ function renderQuestions() {
                 <span class="points">${formatNumber(question.max_points)} 分</span>
               </div>
               <div class="question-body">
-                <div class="markdown">${question.prompt_html}</div>
+                <div class="markdown">${renderPrompt(question, locked)}</div>
                 ${renderInput(question, locked)}
                 ${
                   locked
@@ -169,6 +207,11 @@ function currentAnswer(card) {
   if (card.dataset.type === "mcq") {
     return card.querySelector("input[type='radio']:checked")?.value ?? "";
   }
+  if (card.dataset.type === "text") {
+    return JSON.stringify(
+      [...card.querySelectorAll("[data-text-answer]")].map((input) => input.value.trim()),
+    );
+  }
   return card.querySelector("[data-answer]")?.value ?? "";
 }
 
@@ -177,7 +220,11 @@ function bindQuestionActions() {
     const questionId = card.dataset.questionId;
     card.querySelector("[data-save]")?.addEventListener("click", async () => {
       const answer = currentAnswer(card).trim();
-      if (!answer) {
+      if (
+        !answer ||
+        (card.dataset.type === "text" &&
+          JSON.parse(answer).some((entry) => !entry))
+      ) {
         toast("请先填写或选择答案。", "error");
         return;
       }
@@ -207,6 +254,7 @@ function bindQuestionActions() {
         await api(`/api/exercises/${slug}/responses/${questionId}`, { method: "DELETE" });
         delete data.responses[questionId];
         card.querySelectorAll("input[type='radio']").forEach((input) => (input.checked = false));
+        card.querySelectorAll("[data-text-answer]").forEach((input) => (input.value = ""));
         const textarea = card.querySelector("[data-answer]");
         if (textarea) textarea.value = "";
         card.querySelector("[data-save-state]").textContent = "答案已删除";
