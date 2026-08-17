@@ -199,6 +199,35 @@ function renderExercises() {
   });
 }
 
+function lessonSummaryMarkup() {
+  if (user.lessonType === "project") {
+    return `
+      <article class="summary-card">
+        <span>剩余课时</span>
+        <strong>Project</strong>
+        <small>不按课时计算</small>
+      </article>
+    `;
+  }
+  if (user.lessonType !== "hours") {
+    return `
+      <article class="summary-card">
+        <span>剩余课时</span>
+        <strong>未设置</strong>
+        <small>请联系教师设置</small>
+      </article>
+    `;
+  }
+  const warning = Number(user.remainingLessons) < 15;
+  return `
+    <article class="summary-card">
+      <span>剩余课时</span>
+      <strong class="${warning ? "lesson-warning" : ""}">${formatNumber(user.remainingLessons)}</strong>
+      <small>总 ${formatNumber(user.lessonTotal)} / 已扣 ${formatNumber(user.lessonsUsed)}</small>
+    </article>
+  `;
+}
+
 async function loadExercises() {
   ({ exercises: allExercises } = await api("/api/exercises"));
   const started = allExercises.filter((exercise) => Number(exercise.answered_count) > 0).length;
@@ -206,6 +235,7 @@ async function loadExercises() {
   const published = allExercises.filter((exercise) => exercise.status === "published").length;
 
   document.querySelector("#summary").innerHTML = `
+    ${lessonSummaryMarkup()}
     <article class="summary-card">
       <span>已开始练习</span>
       <strong>${started}</strong>

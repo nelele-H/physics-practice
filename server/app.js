@@ -13,6 +13,7 @@ import { parseExercisePackage } from "./exercise-package.js";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const publicRoot = path.join(projectRoot, "public");
 const cookieName = "physics_practice_session";
+const PROJECT_LESSON_TOTAL = -10000;
 const sessionDays = Math.max(1, Number(process.env.SESSION_DAYS || 7));
 const cookieSecure = process.env.COOKIE_SECURE === "true";
 const loginAttempts = new Map();
@@ -96,6 +97,35 @@ function newToken(bytes = 32) {
   return crypto.randomBytes(bytes).toString("hex");
 }
 
+function roundLessonValue(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function lessonSummary(user) {
+  const total = user.lesson_total === null || user.lesson_total === undefined
+    ? null
+    : Number(user.lesson_total);
+  const used = Number(user.lesson_used || 0);
+  const isProject = total === PROJECT_LESSON_TOTAL;
+  return {
+    lessonType: total === null ? "unset" : isProject ? "project" : "hours",
+    lessonTotal: total === null || isProject ? null : total,
+    lessonsUsed: used,
+    remainingLessons: total === null || isProject ? null : roundLessonValue(total - used),
+    lessonDefaultDeduction: Number(user.lesson_default_deduction || 1),
+  };
+}
+
+function parseLessonNumber(value, { label, positive = false }) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || Math.abs(number) > 1_000_000) {
+    return { error: `${label}必须是绝对值不超过 1000000 的数字。` };
+  }
+  const rounded = roundLessonValue(number);
+  if (positive && rounded <= 0) return { error: `${label}必须大于 0。` };
+  return { value: rounded };
+}
+
 function publicUser(user) {
   return {
     id: user.id,
@@ -103,6 +133,7 @@ function publicUser(user) {
     role: user.role,
     note: user.note,
     mustChangePassword: Boolean(user.must_change_password),
+    ...lessonSummary(user),
   };
 }
 
@@ -887,7 +918,9 @@ app.get("/api/teacher/users", { preHandler: requireTeacher }, async () => ({
   users: db
     .prepare(`
       SELECT
-        u.id, u.username, u.note, u.active, u.must_change_password, u.created_at, u.updated_at,
+        u.id, u.username, u.note, u.active, u.must_change_password,
+        u.lesson_total, u.lesson_used, u.lesson_default_deduction,
+        u.created_at, u.updated_at,
         (SELECT COUNT(*) FROM exercise_assignments ea WHERE ea.user_id = u.id) AS assignment_count,
         (SELECT COUNT(*) FROM attempts a WHERE a.user_id = u.id) AS attempt_count,
         (
@@ -909,6 +942,7 @@ app.get("/api/teacher/users", { preHandler: requireTeacher }, async () => ({
     .all()
     .map((user) => ({
       ...user,
+      ...lessonSummary(user),
       active: Boolean(user.active),
       mustChangePassword: Boolean(user.must_change_password),
     })),
@@ -995,6 +1029,91 @@ app.put(
     replaceAssignments();
 
     return { ok: true, assignedCount: exerciseIds.length };
+  },
+);
+
+app.put(
+  "/api/teacher/users/:id/lessons",
+  { preHandler: requireTeacher },
+  async (request, reply) => {
+    const student = db
+      .prepare("SELECT * FROM users WHERE id = ? AND role = 'student'")
+      .get(request.params.id);
+    if (!student) return reply.code(404).send({ error: "找不到学生账号。" });
+
+    const isProject =
+      request.body?.type === "project" || Number(request.body?.total) === PROJECT_LESSON_TOTAL;
+    const totalResult = isProject
+      ? { value: PROJECT_LESSON_TOTAL }
+      : parseLessonNumber(request.body?.total, { label: "课时总数" });
+    if (totalResult.error) return reply.code(400).send({ error: totalResult.error });
+    const storedTotal = totalResult.value;
+    const typeChanged =
+      (student.lesson_total === PROJECT_LESSON_TOTAL) !== (storedTotal === PROJECT_LESSON_TOTAL);
+    const used = typeChanged || isProject ? 0 : Number(student.lesson_used || 0);
+
+    db.prepare(`
+      UPDATE users
+      SET lesson_total = ?, lesson_used = ?, updated_at = ?
+      WHERE id = ?
+    `).run(storedTotal, used, nowIso(), student.id);
+    audit(request.user.id, "set_student_lessons", "user", student.id, {
+      username: student.username,
+      lessonType: isProject ? "project" : "hours",
+      total: storedTotal,
+      used,
+    });
+
+    const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(student.id);
+    return { ok: true, lessons: lessonSummary(updated) };
+  },
+);
+
+app.post(
+  "/api/teacher/users/:id/lessons/deduct",
+  { preHandler: requireTeacher },
+  async (request, reply) => {
+    const student = db
+      .prepare("SELECT * FROM users WHERE id = ? AND role = 'student'")
+      .get(request.params.id);
+    if (!student) return reply.code(404).send({ error: "找不到学生账号。" });
+    if (student.lesson_total === null) {
+      return reply.code(409).send({ error: "请先设置该学生的课时总数。" });
+    }
+    if (Number(student.lesson_total) === PROJECT_LESSON_TOTAL) {
+      return reply.code(409).send({ error: "Project 类型不按课时扣除。" });
+    }
+
+    const amountResult = parseLessonNumber(request.body?.amount, {
+      label: "扣除课时",
+      positive: true,
+    });
+    if (amountResult.error) return reply.code(400).send({ error: amountResult.error });
+    const amount = amountResult.value;
+    const saveAsDefault = request.body?.saveAsDefault === true;
+    const timestamp = nowIso();
+
+    const deductLessons = db.transaction(() => {
+      db.prepare(`
+        UPDATE users
+        SET
+          lesson_used = lesson_used + ?,
+          lesson_default_deduction = CASE WHEN ? THEN ? ELSE lesson_default_deduction END,
+          updated_at = ?
+        WHERE id = ?
+      `).run(amount, saveAsDefault ? 1 : 0, amount, timestamp, student.id);
+      const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(student.id);
+      const lessons = lessonSummary(updated);
+      audit(request.user.id, "deduct_student_lessons", "user", student.id, {
+        username: student.username,
+        amount,
+        saveAsDefault,
+        remainingLessons: lessons.remainingLessons,
+      });
+      return lessons;
+    });
+
+    return { ok: true, lessons: deductLessons() };
   },
 );
 

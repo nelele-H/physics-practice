@@ -36,6 +36,9 @@ export function initializeDatabase() {
       note TEXT NOT NULL DEFAULT '',
       active INTEGER NOT NULL DEFAULT 1,
       must_change_password INTEGER NOT NULL DEFAULT 0,
+      lesson_total REAL,
+      lesson_used REAL NOT NULL DEFAULT 0,
+      lesson_default_deduction REAL NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -173,6 +176,9 @@ export function initializeDatabase() {
   ensureColumn("answer_keys", "text_answers_json", "TEXT");
   ensureColumn("answer_keys", "text_case_sensitive", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn("exercises", "source_type", "TEXT NOT NULL DEFAULT 'built_in'");
+  ensureColumn("users", "lesson_total", "REAL");
+  ensureColumn("users", "lesson_used", "REAL NOT NULL DEFAULT 0");
+  ensureColumn("users", "lesson_default_deduction", "REAL NOT NULL DEFAULT 1");
 
   if (!assignmentsTableExisted) {
     db.prepare(`

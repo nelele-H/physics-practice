@@ -23,6 +23,7 @@ let managedExercises = [];
 let teacherExerciseQuery = "";
 let studentQuery = "";
 let assignmentEditor = null;
+let lessonDialog = null;
 let managedExercisePage = 1;
 const EXERCISES_PER_PAGE = 6;
 
@@ -71,6 +72,20 @@ function matchesExercise(exercise, query) {
 function matchesStudent(student, query) {
   if (!query) return true;
   return normalizeSearch([student.username, student.note].join(" ")).includes(query);
+}
+
+function lessonBalanceMarkup(student) {
+  if (student.lessonType === "project") {
+    return '<strong class="lesson-value lesson-project">Project</strong><span class="helper">不按课时计算</span>';
+  }
+  if (student.lessonType !== "hours") {
+    return '<strong class="lesson-value lesson-unset">未设置</strong><span class="helper">请设置课时总数</span>';
+  }
+  const warning = Number(student.remainingLessons) < 15;
+  return `
+    <strong class="lesson-value ${warning ? "lesson-warning" : ""}">${formatNumber(student.remainingLessons)}</strong>
+    <span class="helper">总 ${formatNumber(student.lessonTotal)} / 已扣 ${formatNumber(student.lessonsUsed)}</span>
+  `;
 }
 
 function renderTeacherExerciseSearch() {
@@ -222,7 +237,7 @@ function renderStudents() {
       </div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>用户名</th><th>姓名 / 教师备注</th><th>状态</th><th>已分配</th><th>作答数据</th><th>操作</th></tr></thead>
+          <thead><tr><th>用户名</th><th>姓名 / 教师备注</th><th>状态</th><th>剩余课时</th><th>已分配</th><th>作答数据</th><th>操作</th></tr></thead>
           <tbody>
             ${
               filteredUsers.length
@@ -233,6 +248,7 @@ function renderStudents() {
                           <td><strong>${escapeHtml(student.username)}</strong></td>
                           <td>${escapeHtml(student.note || "—")}</td>
                           <td>${student.active ? '<span class="chip chip-success">可登录</span>' : '<span class="chip chip-error">已停用</span>'}</td>
+                          <td><div class="lesson-balance">${lessonBalanceMarkup(student)}</div></td>
                           <td><span class="chip">${student.assignment_count} 套作业</span></td>
                           <td>
                             ${student.attempt_count} 套练习<br />
@@ -241,6 +257,14 @@ function renderStudents() {
                           <td>
                             <div class="table-actions">
                               <button class="button button-primary button-small" data-user-action="assign" data-id="${student.id}">分配作业</button>
+                              <button class="button button-soft button-small" data-user-action="set-lessons" data-id="${student.id}">设置课时</button>
+                              <button
+                                class="button button-soft button-small"
+                                data-user-action="deduct-lessons"
+                                data-id="${student.id}"
+                                ${student.lessonType === "hours" ? "" : "disabled"}
+                                title="${student.lessonType === "project" ? "Project 类型不扣课时" : student.lessonType === "unset" ? "请先设置课时总数" : "扣除课时"}"
+                              >扣除课时</button>
                               <button class="button button-plain button-small" data-user-action="rename" data-id="${student.id}">改用户名</button>
                               <button class="button button-plain button-small" data-user-action="reset" data-id="${student.id}">重置密码</button>
                               <button class="button button-plain button-small" data-user-action="logout" data-id="${student.id}">强制退出</button>
@@ -256,13 +280,14 @@ function renderStudents() {
                       `,
                     )
                     .join("")
-                : `<tr><td colspan="6" class="empty-state">${studentQuery ? "没有找到匹配的学生。" : "还没有学生账号。"}</td></tr>`
+                : `<tr><td colspan="7" class="empty-state">${studentQuery ? "没有找到匹配的学生。" : "还没有学生账号。"}</td></tr>`
             }
           </tbody>
         </table>
       </div>
     </article>
     ${assignmentEditorMarkup()}
+    ${lessonDialogMarkup()}
   `;
   bindStudentActions();
 }
@@ -333,6 +358,93 @@ function assignmentEditorMarkup() {
   `;
 }
 
+function lessonDialogMarkup() {
+  if (!lessonDialog) return "";
+  const student = users.find((item) => item.id === lessonDialog.studentId);
+  if (!student) return "";
+  const displayName = student.note || student.username;
+  const isProject = student.lessonType === "project";
+  const isDeduction = lessonDialog.mode === "deduct";
+  const defaultAmount = Number(student.lessonDefaultDeduction || 1);
+  const preview = student.lessonType === "hours"
+    ? Number(student.remainingLessons) - defaultAmount
+    : null;
+  return `
+    <div class="modal-backdrop" data-lesson-dialog>
+      <section class="lesson-dialog card" role="dialog" aria-modal="true" aria-labelledby="lesson-dialog-title">
+        <form id="lesson-form">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Lessons</p>
+              <h2 id="lesson-dialog-title">${isDeduction ? "扣除课时" : "设置课时"} · ${escapeHtml(displayName)}</h2>
+              <p>学生账号：${escapeHtml(student.username)}</p>
+            </div>
+            <button class="button button-soft button-small" type="button" data-lesson-dialog-close>关闭</button>
+          </div>
+          ${
+            isDeduction
+              ? `
+                  <div class="field">
+                    <label for="lesson-deduction-amount">本次扣除课时</label>
+                    <input
+                      class="input"
+                      id="lesson-deduction-amount"
+                      type="number"
+                      min="0.01"
+                      max="1000000"
+                      step="0.01"
+                      value="${formatNumber(defaultAmount)}"
+                      required
+                    />
+                  </div>
+                  <label class="lesson-default-option">
+                    <input id="lesson-save-default" type="checkbox" />
+                    <span>设为默认扣除值，下次自动预填这个课时数</span>
+                  </label>
+                  <div class="lesson-preview">
+                    <span>当前剩余：<strong class="${Number(student.remainingLessons) < 15 ? "lesson-warning" : ""}">${formatNumber(student.remainingLessons)}</strong></span>
+                    <span>扣除后：<strong id="lesson-deduction-preview" class="${preview < 15 ? "lesson-warning" : ""}">${formatNumber(preview)}</strong></span>
+                  </div>
+                `
+              : `
+                  <div class="field">
+                    <label for="lesson-type">计费类型</label>
+                    <select class="select" id="lesson-type">
+                      <option value="hours" ${isProject ? "" : "selected"}>按课时计算</option>
+                      <option value="project" ${isProject ? "selected" : ""}>Project（不按课时计算）</option>
+                    </select>
+                  </div>
+                  <div class="field" id="lesson-total-field">
+                    <label for="lesson-total">课时总数</label>
+                    <input
+                      class="input"
+                      id="lesson-total"
+                      type="number"
+                      step="0.01"
+                      min="-1000000"
+                      max="1000000"
+                      value="${isProject ? "-10000" : student.lessonType === "hours" ? formatNumber(student.lessonTotal) : ""}"
+                      ${isProject ? "disabled" : ""}
+                      required
+                    />
+                    <span class="helper">也可以直接输入 -10000，系统会保存为 Project；其他负数会正常计算并标红。</span>
+                  </div>
+                  <div class="notice">
+                    当前已扣：${student.lessonType === "hours" ? formatNumber(student.lessonsUsed) : "0"} 课时。
+                    修改普通课时总数会保留已扣记录；切换 Project 类型会清零已扣课时。
+                  </div>
+                `
+          }
+          <div class="lesson-dialog-actions">
+            <button class="button button-soft" type="button" data-lesson-dialog-close>取消</button>
+            <button class="button button-primary" type="submit">${isDeduction ? "确认扣除" : "保存课时设置"}</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  `;
+}
+
 async function openAssignmentEditor(studentId) {
   const payload = await api(`/api/teacher/users/${studentId}/assignments`);
   assignmentEditor = { ...payload, query: "" };
@@ -340,7 +452,77 @@ async function openAssignmentEditor(studentId) {
   document.querySelector("#assignment-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function openLessonDialog(studentId, mode) {
+  lessonDialog = { studentId, mode };
+  renderStudents();
+  document.querySelector("#lesson-deduction-amount, #lesson-total")?.focus();
+}
+
 function bindStudentActions() {
+  document.querySelectorAll("[data-lesson-dialog-close]").forEach((button) => {
+    button.addEventListener("click", () => {
+      lessonDialog = null;
+      renderStudents();
+    });
+  });
+
+  document.querySelector("#lesson-type")?.addEventListener("change", (event) => {
+    const input = document.querySelector("#lesson-total");
+    const student = users.find((item) => item.id === lessonDialog?.studentId);
+    const isProject = event.currentTarget.value === "project";
+    input.disabled = isProject;
+    input.value = isProject
+      ? "-10000"
+      : student?.lessonType === "hours"
+        ? formatNumber(student.lessonTotal)
+        : "";
+    if (!isProject) input.focus();
+  });
+
+  document.querySelector("#lesson-deduction-amount")?.addEventListener("input", (event) => {
+    const student = users.find((item) => item.id === lessonDialog?.studentId);
+    const preview = document.querySelector("#lesson-deduction-preview");
+    const amount = Number(event.currentTarget.value);
+    if (!student || !preview || !Number.isFinite(amount)) return;
+    const remaining = Number(student.remainingLessons) - amount;
+    preview.textContent = formatNumber(remaining);
+    preview.classList.toggle("lesson-warning", remaining < 15);
+  });
+
+  document.querySelector("#lesson-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const student = users.find((item) => item.id === lessonDialog?.studentId);
+    if (!student) return;
+    const button = event.currentTarget.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      if (lessonDialog.mode === "deduct") {
+        const amount = Number(document.querySelector("#lesson-deduction-amount").value);
+        const result = await api(`/api/teacher/users/${student.id}/lessons/deduct`, {
+          method: "POST",
+          body: JSON.stringify({
+            amount,
+            saveAsDefault: document.querySelector("#lesson-save-default").checked,
+          }),
+        });
+        toast(`已扣除 ${formatNumber(amount)} 课时，剩余 ${formatNumber(result.lessons.remainingLessons)}。`);
+      } else {
+        const type = document.querySelector("#lesson-type").value;
+        const total = type === "project" ? -10000 : Number(document.querySelector("#lesson-total").value);
+        const result = await api(`/api/teacher/users/${student.id}/lessons`, {
+          method: "PUT",
+          body: JSON.stringify({ type, total }),
+        });
+        toast(result.lessons.lessonType === "project" ? "已设置为 Project。" : "课时总数已保存。");
+      }
+      lessonDialog = null;
+      await loadUsers();
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message, "error");
+    }
+  });
+
   document.querySelector("#student-search")?.addEventListener("input", (event) => {
     studentQuery = normalizeSearch(event.currentTarget.value);
     renderStudents();
@@ -453,6 +635,14 @@ function bindStudentActions() {
       try {
         if (button.dataset.userAction === "assign") {
           await openAssignmentEditor(student.id);
+          return;
+        }
+        if (button.dataset.userAction === "set-lessons") {
+          openLessonDialog(student.id, "set");
+          return;
+        }
+        if (button.dataset.userAction === "deduct-lessons") {
+          openLessonDialog(student.id, "deduct");
           return;
         }
         if (button.dataset.userAction === "rename") {

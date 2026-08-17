@@ -409,7 +409,7 @@ a {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 26px;
 }
@@ -931,6 +931,104 @@ a {
   align-items: center;
 }
 
+.lesson-balance {
+  display: grid;
+  gap: 3px;
+  min-width: 92px;
+}
+
+.lesson-value {
+  color: var(--purple-950);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.lesson-project {
+  color: var(--purple-800);
+  font-size: 16px;
+}
+
+.lesson-unset {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.lesson-warning,
+.summary-card strong.lesson-warning {
+  color: #b42318;
+}
+
+.summary-card small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.modal-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(51, 47, 53, 0.55);
+}
+
+.lesson-dialog {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 40px);
+  padding: 24px;
+  overflow-y: auto;
+  box-shadow: 0 24px 70px rgba(51, 47, 53, 0.28);
+}
+
+.lesson-dialog form {
+  display: grid;
+  gap: 16px;
+}
+
+.lesson-dialog .section-heading {
+  margin-bottom: 0;
+}
+
+.lesson-default-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--purple-950);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.lesson-default-option input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  accent-color: var(--purple-800);
+}
+
+.lesson-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lesson-preview span {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--purple-050);
+}
+
+.lesson-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
 .assignment-editor {
   scroll-margin-top: 20px;
 }
@@ -1210,6 +1308,10 @@ a {
   .filter-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 680px) {
@@ -1287,6 +1389,14 @@ a {
 
   .numeric-input-row {
     grid-template-columns: 1fr;
+  }
+
+  .lesson-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .lesson-dialog {
+    padding: 18px;
   }
 }
 
