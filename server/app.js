@@ -181,8 +181,16 @@ function setSession(reply, userId) {
   });
 }
 
-function getExerciseBySlug(slug) {
-  return db.prepare("SELECT * FROM exercises WHERE slug = ? AND visible = 1").get(slug);
+function getAssignedExerciseBySlug(slug, userId) {
+  return db
+    .prepare(`
+      SELECT e.*
+      FROM exercises e
+      JOIN exercise_assignments assignment
+        ON assignment.exercise_id = e.id AND assignment.user_id = ?
+      WHERE e.slug = ? AND e.visible = 1
+    `)
+    .get(userId, slug);
 }
 
 function getOrCreateAttempt(userId, exerciseId) {
@@ -416,13 +424,15 @@ app.get("/api/exercises", { preHandler: requireAuth }, async (request) => {
         a.id AS attempt_id, a.status, a.total_score, a.max_score,
         COUNT(r.id) AS answered_count
       FROM exercises e
+      JOIN exercise_assignments assignment
+        ON assignment.exercise_id = e.id AND assignment.user_id = ?
       LEFT JOIN attempts a ON a.exercise_id = e.id AND a.user_id = ?
       LEFT JOIN responses r ON r.attempt_id = a.id AND TRIM(r.answer_text) <> ''
       WHERE e.visible = 1
       GROUP BY e.id, a.id
       ORDER BY e.id
     `)
-    .all(request.user.id)
+    .all(request.user.id, request.user.id)
     .map((exercise) => ({
       ...exercise,
       status: exercise.status ?? "not_started",
@@ -688,8 +698,8 @@ app.delete(
 );
 
 app.get("/api/exercises/:slug", { preHandler: requireStudent }, async (request, reply) => {
-  const exercise = getExerciseBySlug(request.params.slug);
-  if (!exercise) return reply.code(404).send({ error: "找不到练习。" });
+  const exercise = getAssignedExerciseBySlug(request.params.slug, request.user.id);
+  if (!exercise) return reply.code(404).send({ error: "找不到练习，或教师尚未分配该作业。" });
   const attempt = getOrCreateAttempt(request.user.id, exercise.id);
   const questions = db
     .prepare(`
@@ -785,8 +795,8 @@ app.put(
   "/api/exercises/:slug/responses/:questionId",
   { preHandler: requireStudent },
   async (request, reply) => {
-    const exercise = getExerciseBySlug(request.params.slug);
-    if (!exercise) return reply.code(404).send({ error: "找不到练习。" });
+    const exercise = getAssignedExerciseBySlug(request.params.slug, request.user.id);
+    if (!exercise) return reply.code(404).send({ error: "找不到练习，或教师尚未分配该作业。" });
     const attempt = getOrCreateAttempt(request.user.id, exercise.id);
     if (attempt.status !== "draft") {
       return reply.code(409).send({ error: "教师已经开始批改，答案已锁定。" });
@@ -859,8 +869,8 @@ app.delete(
   "/api/exercises/:slug/responses/:questionId",
   { preHandler: requireStudent },
   async (request, reply) => {
-    const exercise = getExerciseBySlug(request.params.slug);
-    if (!exercise) return reply.code(404).send({ error: "找不到练习。" });
+    const exercise = getAssignedExerciseBySlug(request.params.slug, request.user.id);
+    if (!exercise) return reply.code(404).send({ error: "找不到练习，或教师尚未分配该作业。" });
     const attempt = getOrCreateAttempt(request.user.id, exercise.id);
     if (attempt.status !== "draft") {
       return reply.code(409).send({ error: "教师已经开始批改，答案已锁定。" });
@@ -878,6 +888,7 @@ app.get("/api/teacher/users", { preHandler: requireTeacher }, async () => ({
     .prepare(`
       SELECT
         u.id, u.username, u.note, u.active, u.must_change_password, u.created_at, u.updated_at,
+        (SELECT COUNT(*) FROM exercise_assignments ea WHERE ea.user_id = u.id) AS assignment_count,
         (SELECT COUNT(*) FROM attempts a WHERE a.user_id = u.id) AS attempt_count,
         (
           SELECT COUNT(*)
@@ -902,6 +913,90 @@ app.get("/api/teacher/users", { preHandler: requireTeacher }, async () => ({
       mustChangePassword: Boolean(user.must_change_password),
     })),
 }));
+
+app.get(
+  "/api/teacher/users/:id/assignments",
+  { preHandler: requireTeacher },
+  async (request, reply) => {
+    const student = db
+      .prepare("SELECT id, username, note FROM users WHERE id = ? AND role = 'student'")
+      .get(request.params.id);
+    if (!student) return reply.code(404).send({ error: "找不到学生账号。" });
+
+    const assignments = db
+      .prepare(`
+        SELECT
+          e.id, e.slug, e.code, e.title, e.subtitle, e.visible,
+          CASE WHEN ea.user_id IS NULL THEN 0 ELSE 1 END AS assigned
+        FROM exercises e
+        LEFT JOIN exercise_assignments ea
+          ON ea.exercise_id = e.id AND ea.user_id = ?
+        ORDER BY e.id
+      `)
+      .all(student.id)
+      .map((exercise) => ({
+        ...exercise,
+        visible: Boolean(exercise.visible),
+        assigned: Boolean(exercise.assigned),
+      }));
+
+    return { student, assignments };
+  },
+);
+
+app.put(
+  "/api/teacher/users/:id/assignments",
+  { preHandler: requireTeacher },
+  async (request, reply) => {
+    const student = db
+      .prepare("SELECT id, username FROM users WHERE id = ? AND role = 'student'")
+      .get(request.params.id);
+    if (!student) return reply.code(404).send({ error: "找不到学生账号。" });
+    if (!Array.isArray(request.body?.exerciseIds)) {
+      return reply.code(400).send({ error: "exerciseIds 必须是数组。" });
+    }
+
+    const exerciseIds = [
+      ...new Set(
+        request.body.exerciseIds
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0),
+      ),
+    ];
+    if (exerciseIds.length !== request.body.exerciseIds.length || exerciseIds.length > 500) {
+      return reply.code(400).send({ error: "作业编号无效或存在重复。" });
+    }
+
+    if (exerciseIds.length) {
+      const placeholders = exerciseIds.map(() => "?").join(", ");
+      const existingCount = db
+        .prepare(`SELECT COUNT(*) AS count FROM exercises WHERE id IN (${placeholders})`)
+        .get(...exerciseIds).count;
+      if (existingCount !== exerciseIds.length) {
+        return reply.code(400).send({ error: "包含不存在的作业。" });
+      }
+    }
+
+    const timestamp = nowIso();
+    const replaceAssignments = db.transaction(() => {
+      db.prepare("DELETE FROM exercise_assignments WHERE user_id = ?").run(student.id);
+      const insert = db.prepare(`
+        INSERT INTO exercise_assignments (user_id, exercise_id, assigned_by, assigned_at)
+        VALUES (?, ?, ?, ?)
+      `);
+      for (const exerciseId of exerciseIds) {
+        insert.run(student.id, exerciseId, request.user.id, timestamp);
+      }
+      audit(request.user.id, "replace_exercise_assignments", "user", student.id, {
+        username: student.username,
+        exerciseIds,
+      });
+    });
+    replaceAssignments();
+
+    return { ok: true, assignedCount: exerciseIds.length };
+  },
+);
 
 app.post("/api/teacher/activation-tokens", { preHandler: requireTeacher }, async (request) => {
   const token = crypto.randomBytes(5).toString("hex").toUpperCase();

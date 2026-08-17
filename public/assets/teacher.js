@@ -21,6 +21,8 @@ let attempts = [];
 let currentReview = null;
 let managedExercises = [];
 let teacherExerciseQuery = "";
+let studentQuery = "";
+let assignmentEditor = null;
 let managedExercisePage = 1;
 const EXERCISES_PER_PAGE = 6;
 
@@ -64,6 +66,11 @@ function matchesExercise(exercise, query) {
   return normalizeSearch(
     [exercise.code, exercise.title, exercise.subtitle, exercise.slug].join(" "),
   ).includes(query);
+}
+
+function matchesStudent(student, query) {
+  if (!query) return true;
+  return normalizeSearch([student.username, student.note].join(" ")).includes(query);
 }
 
 function renderTeacherExerciseSearch() {
@@ -164,6 +171,7 @@ async function loadUsers() {
 
 function renderStudents() {
   const panel = document.querySelector("#tab-students");
+  const filteredUsers = users.filter((student) => matchesStudent(student, studentQuery));
   panel.innerHTML = `
     <div class="split-grid">
       <article class="card card-pad">
@@ -172,7 +180,7 @@ function renderStudents() {
         </div>
         <form id="token-form" class="form-grid">
           <div class="field">
-            <label for="token-note">教师备注（可选）</label>
+            <label for="token-note">学生姓名 / 教师备注（可选）</label>
             <input class="input" id="token-note" placeholder="例如：小明，只有教师能看到" />
           </div>
           <button class="button button-primary" type="submit">生成一次性激活码</button>
@@ -186,35 +194,53 @@ function renderStudents() {
         <form id="create-user-form" class="form-grid">
           <div class="field"><label>用户名</label><input class="input" name="username" required /></div>
           <div class="field"><label>临时密码</label><input class="input" name="password" type="password" minlength="6" required /></div>
-          <div class="field"><label>教师备注</label><input class="input" name="note" /></div>
+          <div class="field"><label>学生姓名 / 教师备注</label><input class="input" name="note" /></div>
           <button class="button button-primary" type="submit">创建学生账号</button>
         </form>
       </article>
     </div>
     <article class="card card-pad">
       <div class="section-heading">
-        <div><h2>学生账号</h2><p>可以维护账号；永久删除会同时清除该学生的全部作答和评分记录。</p></div>
+        <div><h2>学生账号</h2><p>可按姓名或账号检索、分配作业；永久删除会同时清除全部作答和评分记录。</p></div>
         <span class="chip">${users.length} 个账号</span>
+      </div>
+      <div class="toolbar student-search-toolbar">
+        <div class="field">
+          <label for="student-search">检索学生姓名或账号</label>
+          <input
+            class="input"
+            id="student-search"
+            type="search"
+            value="${escapeHtml(studentQuery)}"
+            placeholder="输入教师备注中的姓名或学生用户名"
+            autocomplete="off"
+          />
+        </div>
+        <span class="helper" id="student-search-count">
+          ${studentQuery ? `找到 ${filteredUsers.length} 位，共 ${users.length} 位` : `共 ${users.length} 位学生`}
+        </span>
       </div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>用户名</th><th>教师备注</th><th>状态</th><th>作答数据</th><th>操作</th></tr></thead>
+          <thead><tr><th>用户名</th><th>姓名 / 教师备注</th><th>状态</th><th>已分配</th><th>作答数据</th><th>操作</th></tr></thead>
           <tbody>
             ${
-              users.length
-                ? users
+              filteredUsers.length
+                ? filteredUsers
                     .map(
                       (student) => `
-                        <tr>
+                        <tr data-student-id="${student.id}">
                           <td><strong>${escapeHtml(student.username)}</strong></td>
                           <td>${escapeHtml(student.note || "—")}</td>
                           <td>${student.active ? '<span class="chip chip-success">可登录</span>' : '<span class="chip chip-error">已停用</span>'}</td>
+                          <td><span class="chip">${student.assignment_count} 套作业</span></td>
                           <td>
                             ${student.attempt_count} 套练习<br />
                             <span class="helper">${student.response_count} 份答案，${student.grading_count} 项评分</span>
                           </td>
                           <td>
                             <div class="table-actions">
+                              <button class="button button-primary button-small" data-user-action="assign" data-id="${student.id}">分配作业</button>
                               <button class="button button-plain button-small" data-user-action="rename" data-id="${student.id}">改用户名</button>
                               <button class="button button-plain button-small" data-user-action="reset" data-id="${student.id}">重置密码</button>
                               <button class="button button-plain button-small" data-user-action="logout" data-id="${student.id}">强制退出</button>
@@ -230,17 +256,161 @@ function renderStudents() {
                       `,
                     )
                     .join("")
-                : '<tr><td colspan="5" class="empty-state">还没有学生账号。</td></tr>'
+                : `<tr><td colspan="6" class="empty-state">${studentQuery ? "没有找到匹配的学生。" : "还没有学生账号。"}</td></tr>`
             }
           </tbody>
         </table>
       </div>
     </article>
+    ${assignmentEditorMarkup()}
   `;
   bindStudentActions();
 }
 
+function assignmentEditorMarkup() {
+  if (!assignmentEditor) return "";
+  const matches = assignmentEditor.assignments.filter((exercise) =>
+    matchesExercise(exercise, assignmentEditor.query),
+  );
+  const assignedCount = assignmentEditor.assignments.filter((exercise) => exercise.assigned).length;
+  return `
+    <article class="card card-pad assignment-editor" id="assignment-editor">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Assignment</p>
+          <h2>为 ${escapeHtml(assignmentEditor.student.note || assignmentEditor.student.username)} 分配作业</h2>
+          <p>学生账号：${escapeHtml(assignmentEditor.student.username)}；已勾选 ${assignedCount} 套。</p>
+        </div>
+        <button class="button button-soft button-small" type="button" data-assignment-action="close">关闭</button>
+      </div>
+      <div class="toolbar">
+        <div class="field">
+          <label for="assignment-search">检索作业</label>
+          <input
+            class="input"
+            id="assignment-search"
+            type="search"
+            value="${escapeHtml(assignmentEditor.query)}"
+            placeholder="输入编号或标题"
+            autocomplete="off"
+          />
+        </div>
+        <button class="button button-soft button-small" type="button" data-assignment-action="select-visible">勾选全部已发布</button>
+        <button class="button button-soft button-small" type="button" data-assignment-action="clear">全部取消</button>
+      </div>
+      <div class="assignment-grid">
+        ${
+          matches.length
+            ? matches
+                .map(
+                  (exercise) => `
+                    <label class="assignment-option ${exercise.assigned ? "selected" : ""}">
+                      <input
+                        type="checkbox"
+                        data-assignment-exercise="${exercise.id}"
+                        ${exercise.assigned ? "checked" : ""}
+                      />
+                      <span>
+                        <strong>${escapeHtml(exercise.code)} · ${escapeHtml(exercise.title)}</strong>
+                        <small>${
+                          exercise.visible
+                            ? "已发布，分配后学生立即可见"
+                            : "未发布，发布后学生才可见"
+                        }</small>
+                      </span>
+                    </label>
+                  `,
+                )
+                .join("")
+            : '<div class="empty-state">没有找到匹配的作业。</div>'
+        }
+      </div>
+      <div class="assignment-footer">
+        <span class="helper">未发布作业可以预先分配，但学生要等教师发布后才能看到。</span>
+        <button class="button button-primary" type="button" data-assignment-action="save">保存分配</button>
+      </div>
+    </article>
+  `;
+}
+
+async function openAssignmentEditor(studentId) {
+  const payload = await api(`/api/teacher/users/${studentId}/assignments`);
+  assignmentEditor = { ...payload, query: "" };
+  renderStudents();
+  document.querySelector("#assignment-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function bindStudentActions() {
+  document.querySelector("#student-search")?.addEventListener("input", (event) => {
+    studentQuery = normalizeSearch(event.currentTarget.value);
+    renderStudents();
+    const input = document.querySelector("#student-search");
+    input?.focus();
+    input?.setSelectionRange(input.value.length, input.value.length);
+  });
+
+  document.querySelector("#assignment-search")?.addEventListener("input", (event) => {
+    assignmentEditor.query = normalizeSearch(event.currentTarget.value);
+    renderStudents();
+    const input = document.querySelector("#assignment-search");
+    input?.focus();
+    input?.setSelectionRange(input.value.length, input.value.length);
+  });
+
+  document.querySelectorAll("[data-assignment-exercise]").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const exercise = assignmentEditor?.assignments.find(
+        (item) => item.id === Number(checkbox.dataset.assignmentExercise),
+      );
+      if (!exercise) return;
+      exercise.assigned = checkbox.checked;
+      checkbox.closest(".assignment-option")?.classList.toggle("selected", checkbox.checked);
+    });
+  });
+
+  document.querySelectorAll("[data-assignment-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.assignmentAction;
+      if (action === "close") {
+        assignmentEditor = null;
+        renderStudents();
+        return;
+      }
+      if (action === "select-visible") {
+        assignmentEditor.assignments.forEach((exercise) => {
+          if (exercise.visible) exercise.assigned = true;
+        });
+        renderStudents();
+        return;
+      }
+      if (action === "clear") {
+        assignmentEditor.assignments.forEach((exercise) => {
+          exercise.assigned = false;
+        });
+        renderStudents();
+        return;
+      }
+      if (action === "save") {
+        button.disabled = true;
+        try {
+          const exerciseIds = assignmentEditor.assignments
+            .filter((exercise) => exercise.assigned)
+            .map((exercise) => exercise.id);
+          await api(`/api/teacher/users/${assignmentEditor.student.id}/assignments`, {
+            method: "PUT",
+            body: JSON.stringify({ exerciseIds }),
+          });
+          toast(`已为 ${assignmentEditor.student.username} 分配 ${exerciseIds.length} 套作业。`);
+          assignmentEditor = null;
+          await loadUsers();
+        } catch (error) {
+          button.disabled = false;
+          toast(error.message, "error");
+        }
+      }
+    });
+  });
+
   document.querySelector("#token-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
@@ -281,10 +451,14 @@ function bindStudentActions() {
       const student = users.find((item) => item.id === Number(button.dataset.id));
       if (!student) return;
       try {
+        if (button.dataset.userAction === "assign") {
+          await openAssignmentEditor(student.id);
+          return;
+        }
         if (button.dataset.userAction === "rename") {
           const username = window.prompt("输入新的用户名：", student.username);
           if (!username) return;
-          const note = window.prompt("教师备注：", student.note || "") ?? student.note;
+          const note = window.prompt("学生姓名 / 教师备注：", student.note || "") ?? student.note;
           await api(`/api/teacher/users/${student.id}`, {
             method: "PATCH",
             body: JSON.stringify({ username, note }),

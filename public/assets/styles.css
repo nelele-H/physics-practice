@@ -927,6 +927,69 @@ a {
   flex: 1;
 }
 
+.student-search-toolbar {
+  align-items: center;
+}
+
+.assignment-editor {
+  scroll-margin-top: 20px;
+}
+
+.assignment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-height: 520px;
+  padding: 2px;
+  overflow-y: auto;
+}
+
+.assignment-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  cursor: pointer;
+}
+
+.assignment-option.selected {
+  border-color: var(--purple-500);
+  background: var(--purple-050);
+}
+
+.assignment-option input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--purple-800);
+}
+
+.assignment-option span {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.assignment-option strong {
+  line-height: 1.45;
+}
+
+.assignment-option small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.assignment-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
@@ -1175,9 +1238,15 @@ a {
 
   .summary-grid,
   .exercise-grid,
+  .assignment-grid,
   .split-grid,
   .search-panel {
     grid-template-columns: 1fr;
+  }
+
+  .assignment-footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .search-result-item {

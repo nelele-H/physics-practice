@@ -171,8 +171,12 @@ function renderExercises() {
         .join("")
     : `
         <div class="card card-pad empty-search">
-          <strong>没有找到相关练习</strong>
-          <p>换一个更短的关键词试试，例如“1A”或“能量”。</p>
+          <strong>${allExercises.length ? "没有找到相关练习" : "老师暂未分配作业"}</strong>
+          <p>${
+            allExercises.length
+              ? "换一个更短的关键词试试，例如“1A”或“能量”。"
+              : "老师分配并发布作业后，会显示在这里。"
+          }</p>
         </div>
       `;
 

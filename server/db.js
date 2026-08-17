@@ -22,6 +22,11 @@ export function nowIso() {
 }
 
 export function initializeDatabase() {
+  const assignmentsTableExisted = Boolean(
+    db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'exercise_assignments'")
+      .get(),
+  );
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,6 +76,14 @@ export function initializeDatabase() {
       slug TEXT PRIMARY KEY,
       deleted_at TEXT NOT NULL,
       deleted_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS exercise_assignments (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      exercise_id INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+      assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      assigned_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, exercise_id)
     );
 
     CREATE TABLE IF NOT EXISTS questions (
@@ -145,6 +158,8 @@ export function initializeDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS sessions_token_idx ON sessions(token_hash);
+    CREATE INDEX IF NOT EXISTS exercise_assignments_exercise_idx
+      ON exercise_assignments(exercise_id);
     CREATE INDEX IF NOT EXISTS attempts_exercise_status_idx ON attempts(exercise_id, status);
     CREATE INDEX IF NOT EXISTS responses_question_idx ON responses(question_id);
     CREATE INDEX IF NOT EXISTS grading_question_idx ON grading_items(question_id);
@@ -158,6 +173,15 @@ export function initializeDatabase() {
   ensureColumn("answer_keys", "text_answers_json", "TEXT");
   ensureColumn("answer_keys", "text_case_sensitive", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn("exercises", "source_type", "TEXT NOT NULL DEFAULT 'built_in'");
+
+  if (!assignmentsTableExisted) {
+    db.prepare(`
+      INSERT OR IGNORE INTO exercise_assignments
+        (user_id, exercise_id, assigned_by, assigned_at)
+      SELECT user_id, exercise_id, NULL, created_at
+      FROM attempts
+    `).run();
+  }
 
   seedExerciseContent();
   db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(nowIso());
