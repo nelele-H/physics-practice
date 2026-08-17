@@ -829,6 +829,21 @@ async function openReview(attemptId) {
   renderReview();
 }
 
+function scoreIsIncomplete(score, maxPoints) {
+  if (score === null || score === undefined || String(score).trim() === "") return false;
+  const numericScore = Number(score);
+  return Number.isFinite(numericScore) && numericScore < Number(maxPoints);
+}
+
+function updateReviewScoreHighlight(item) {
+  const input = item.querySelector("[data-score]");
+  const badge = item.querySelector("[data-incomplete-score-badge]");
+  if (!input || !badge) return;
+  const incomplete = scoreIsIncomplete(input.value, item.dataset.maxPoints);
+  item.classList.toggle("review-item-incomplete", incomplete);
+  badge.hidden = !incomplete;
+}
+
 function renderReview() {
   const panel = document.querySelector("#review-panel");
   const { attempt, items } = currentReview;
@@ -845,11 +860,16 @@ function renderReview() {
       </div>
       <div class="review-list">
         ${items
-          .map(
-            (item) => `
-              <section class="review-item" ${item.answered ? `data-grade-item="${escapeHtml(item.question_id)}"` : ""}>
+          .map((item) => {
+            const incomplete = item.answered && scoreIsIncomplete(item.score, item.max_points);
+            return `
+              <section class="review-item ${incomplete ? "review-item-incomplete" : ""}" data-max-points="${item.max_points}" ${item.answered ? `data-grade-item="${escapeHtml(item.question_id)}"` : ""}>
                 <div>
-                  <div class="question-number"><strong>第 ${escapeHtml(item.label)} 题</strong><span class="points">${formatNumber(item.max_points)} 分</span></div>
+                  <div class="question-number">
+                    <strong>第 ${escapeHtml(item.label)} 题</strong>
+                    <span class="chip chip-error incomplete-score-badge" data-incomplete-score-badge ${incomplete ? "" : "hidden"}>未满分</span>
+                    <span class="points">${formatNumber(item.max_points)} 分</span>
+                  </div>
                   <div class="markdown">${item.prompt_html}</div>
                   <div class="student-answer"><strong>学生答案</strong><p>${formatStudentAnswer(item)}</p></div>
                   <div class="official-answer"><strong>参考答案与评分要点</strong><div class="markdown">${item.answer_html}</div></div>
@@ -888,8 +908,8 @@ function renderReview() {
                     `
                 }
               </section>
-            `,
-          )
+            `;
+          })
           .join("")}
       </div>
       <div class="field" style="margin-top:22px">
@@ -914,6 +934,9 @@ function renderReview() {
   document.querySelector("#close-review").addEventListener("click", () => (panel.innerHTML = ""));
   document.querySelector("#save-grading")?.addEventListener("click", () => saveReview(false));
   document.querySelector("#publish-grading")?.addEventListener("click", () => saveReview(true));
+  document.querySelectorAll("[data-grade-item]").forEach((item) => {
+    item.querySelector("[data-score]")?.addEventListener("input", () => updateReviewScoreHighlight(item));
+  });
   panel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 

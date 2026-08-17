@@ -169,15 +169,20 @@ function renderQuestions() {
   const list = document.querySelector("#question-list");
   list.innerHTML = visible.length
     ? visible
-        .map(
-          (question) => `
-            <article class="card question-card" id="${escapeHtml(question.id)}" data-question-id="${escapeHtml(question.id)}" data-type="${question.input_mode}">
+        .map((question) => {
+          const result = data.results[question.id];
+          const incomplete = Boolean(result && Number(result.score) < Number(result.maxPoints));
+          return `
+            <article class="card question-card ${incomplete ? "question-card-incomplete" : ""}" id="${escapeHtml(question.id)}" data-question-id="${escapeHtml(question.id)}" data-type="${question.input_mode}">
               <div class="question-head">
                 <div class="question-number">
                   <strong>第 ${escapeHtml(question.label)} 题</strong>
                   ${question.title ? `<span class="helper">${escapeHtml(question.title)}</span>` : ""}
                 </div>
-                <span class="points">${formatNumber(question.max_points)} 分</span>
+                <div class="question-score-summary">
+                  ${incomplete ? '<span class="chip chip-error incomplete-score-badge">未满分</span>' : ""}
+                  <span class="points">${formatNumber(question.max_points)} 分</span>
+                </div>
               </div>
               <div class="question-body">
                 <div class="markdown">${renderPrompt(question, locked)}</div>
@@ -196,8 +201,8 @@ function renderQuestions() {
                 ${renderResult(question)}
               </div>
             </article>
-          `,
-        )
+          `;
+        })
         .join("")
     : `<div class="card empty-state">这个筛选条件下暂时没有题目。</div>`;
   bindQuestionActions();
