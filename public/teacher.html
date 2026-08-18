@@ -16,6 +16,7 @@
         </a>
         <div class="top-actions">
           <span class="user-label helper" data-user-label></span>
+          <button class="button button-plain button-small" id="teacher-password-toggle">修改密码</button>
           <button class="button button-plain button-small" data-logout>退出</button>
         </div>
       </div>
@@ -60,6 +61,38 @@
       <section id="tab-stats" class="tab-panel section-stack hidden"></section>
       <section id="tab-exercises" class="tab-panel section-stack hidden"></section>
     </main>
+    <div class="modal-backdrop hidden" id="teacher-password-dialog">
+      <section class="lesson-dialog card" role="dialog" aria-modal="true" aria-labelledby="teacher-password-title">
+        <form id="teacher-password-form">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Account security</p>
+              <h2 id="teacher-password-title">修改教师密码</h2>
+              <p>每个教师账号只能通过网页自助修改一次；修改后需用新密码重新登录。</p>
+            </div>
+            <button class="button button-soft button-small" type="button" data-teacher-password-close>关闭</button>
+          </div>
+          <div class="field">
+            <label for="teacher-current-password">当前密码</label>
+            <input class="input" id="teacher-current-password" type="password" autocomplete="current-password" required />
+          </div>
+          <div class="field">
+            <label for="teacher-new-password">新密码</label>
+            <input class="input" id="teacher-new-password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required />
+            <span class="helper">至少 8 位，且不能与教师用户名或当前密码相同。</span>
+          </div>
+          <div class="field">
+            <label for="teacher-confirm-password">再次输入新密码</label>
+            <input class="input" id="teacher-confirm-password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required />
+          </div>
+          <div class="notice notice-error hidden" id="teacher-password-error" role="alert"></div>
+          <div class="lesson-dialog-actions">
+            <button class="button button-soft" type="button" data-teacher-password-close>取消</button>
+            <button class="button button-primary" type="submit">确认修改一次</button>
+          </div>
+        </form>
+      </section>
+    </div>
     <script type="module" src="/assets/teacher.js"></script>
   </body>
 </html>

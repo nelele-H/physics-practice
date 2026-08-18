@@ -133,6 +133,8 @@ function publicUser(user) {
     role: user.role,
     note: user.note,
     mustChangePassword: Boolean(user.must_change_password),
+    teacherPasswordChangeAvailable:
+      user.role === "teacher" && !user.teacher_password_changed_at,
     ...lessonSummary(user),
   };
 }
@@ -424,17 +426,56 @@ app.post("/api/auth/change-password", { preHandler: requireAuth }, async (reques
   const current = String(request.body?.currentPassword ?? "");
   const nextResult = validatePassword(request.body?.newPassword);
   if (nextResult.error) return reply.code(400).send({ error: nextResult.error });
+  const isTeacher = request.user.role === "teacher";
+  if (isTeacher && request.user.teacher_password_changed_at) {
+    return reply.code(409).send({ error: "这个教师账号已经使用过网页自助改密功能。" });
+  }
+  if (isTeacher && nextResult.password.length < 8) {
+    return reply.code(400).send({ error: "教师新密码长度应为 8～128 个字符。" });
+  }
+  if (
+    isTeacher &&
+    nextResult.password.normalize("NFKC").toLocaleLowerCase() ===
+      request.user.username.normalize("NFKC").toLocaleLowerCase()
+  ) {
+    return reply.code(400).send({ error: "新密码不能与教师用户名相同。" });
+  }
   if (!bcrypt.compareSync(current, request.user.password_hash)) {
     return reply.code(400).send({ error: "当前密码不正确。" });
   }
-  db.prepare(`
-    UPDATE users
-    SET password_hash = ?, must_change_password = 0, updated_at = ?
-    WHERE id = ?
-  `).run(bcrypt.hashSync(nextResult.password, 12), nowIso(), request.user.id);
-  db.prepare("DELETE FROM sessions WHERE user_id = ?").run(request.user.id);
+  if (bcrypt.compareSync(nextResult.password, request.user.password_hash)) {
+    return reply.code(400).send({ error: "新密码不能与当前密码相同。" });
+  }
+
+  const timestamp = nowIso();
+  const passwordHash = bcrypt.hashSync(nextResult.password, 12);
+  const changed = db.transaction(() => {
+    const result = isTeacher
+      ? db.prepare(`
+          UPDATE users
+          SET password_hash = ?, must_change_password = 0,
+              teacher_password_changed_at = ?, updated_at = ?
+          WHERE id = ? AND teacher_password_changed_at IS NULL
+        `).run(passwordHash, timestamp, timestamp, request.user.id)
+      : db.prepare(`
+          UPDATE users
+          SET password_hash = ?, must_change_password = 0, updated_at = ?
+          WHERE id = ?
+        `).run(passwordHash, timestamp, request.user.id);
+    if (result.changes !== 1) return false;
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(request.user.id);
+    return true;
+  })();
+  if (!changed) {
+    return reply.code(409).send({ error: "这个教师账号已经使用过网页自助改密功能。" });
+  }
   reply.clearCookie(cookieName, { path: "/" });
-  audit(request.user.id, "change_password", "user", request.user.id);
+  audit(
+    request.user.id,
+    isTeacher ? "change_teacher_password_once" : "change_password",
+    "user",
+    request.user.id,
+  );
   return { ok: true };
 });
 

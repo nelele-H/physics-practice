@@ -15,6 +15,65 @@ if (!user) throw new Error("未登录");
 setUserLabel(user);
 bindLogout();
 
+const teacherPasswordToggle = document.querySelector("#teacher-password-toggle");
+const teacherPasswordDialog = document.querySelector("#teacher-password-dialog");
+const teacherPasswordForm = document.querySelector("#teacher-password-form");
+const teacherPasswordError = document.querySelector("#teacher-password-error");
+
+function closeTeacherPasswordDialog() {
+  teacherPasswordDialog.classList.add("hidden");
+  teacherPasswordForm.reset();
+  teacherPasswordError.classList.add("hidden");
+  teacherPasswordError.textContent = "";
+}
+
+if (user.teacherPasswordChangeAvailable) {
+  teacherPasswordToggle.addEventListener("click", () => {
+    teacherPasswordDialog.classList.remove("hidden");
+    document.querySelector("#teacher-current-password").focus();
+  });
+} else {
+  teacherPasswordToggle.textContent = "已修改过密码";
+  teacherPasswordToggle.disabled = true;
+  teacherPasswordToggle.title = "这个教师账号已经使用过一次网页自助改密";
+}
+
+document.querySelectorAll("[data-teacher-password-close]").forEach((button) => {
+  button.addEventListener("click", closeTeacherPasswordDialog);
+});
+
+teacherPasswordDialog.addEventListener("click", (event) => {
+  if (event.target === teacherPasswordDialog) closeTeacherPasswordDialog();
+});
+
+teacherPasswordForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const currentPassword = document.querySelector("#teacher-current-password").value;
+  const newPassword = document.querySelector("#teacher-new-password").value;
+  const confirmPassword = document.querySelector("#teacher-confirm-password").value;
+  const button = teacherPasswordForm.querySelector('button[type="submit"]');
+  teacherPasswordError.classList.add("hidden");
+  if (newPassword !== confirmPassword) {
+    teacherPasswordError.textContent = "两次输入的新密码不一致。";
+    teacherPasswordError.classList.remove("hidden");
+    return;
+  }
+  button.disabled = true;
+  try {
+    await api("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    toast("密码已修改，请用新密码重新登录。");
+    setTimeout(() => (window.location.href = "/"), 900);
+  } catch (error) {
+    teacherPasswordError.textContent = error.message;
+    teacherPasswordError.classList.remove("hidden");
+  } finally {
+    button.disabled = false;
+  }
+});
+
 let exercises = [];
 let users = [];
 let attempts = [];
