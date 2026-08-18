@@ -5,6 +5,7 @@ import {
   formatNumber,
   formatPercent,
   getSession,
+  initializeImagePreviews,
   setUserLabel,
   statusChip,
   toast,
@@ -14,6 +15,7 @@ const user = await getSession("teacher");
 if (!user) throw new Error("未登录");
 setUserLabel(user);
 bindLogout();
+initializeImagePreviews();
 
 const teacherPasswordToggle = document.querySelector("#teacher-password-toggle");
 const teacherPasswordDialog = document.querySelector("#teacher-password-dialog");

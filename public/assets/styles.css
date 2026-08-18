@@ -731,6 +731,92 @@ a {
   margin-bottom: 0;
 }
 
+.markdown img {
+  display: block;
+  width: auto;
+  max-width: min(100%, calc(100vw - 40px));
+  height: auto;
+  max-height: 72vh;
+  margin: 16px auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  object-fit: contain;
+  background: var(--white);
+  box-shadow: 0 8px 24px rgba(51, 47, 53, 0.08);
+}
+
+.markdown img.previewable-image {
+  cursor: zoom-in;
+}
+
+.markdown img.previewable-image:focus-visible {
+  outline: 3px solid var(--purple-300);
+  outline-offset: 3px;
+}
+
+.image-lightbox-open {
+  overflow: hidden;
+}
+
+.image-lightbox {
+  position: fixed;
+  z-index: 1300;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(24, 20, 27, 0.86);
+}
+
+.image-lightbox-panel {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(1180px, 100%);
+  max-height: calc(100vh - 40px);
+}
+
+.image-lightbox-panel img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 110px);
+  border-radius: 10px;
+  object-fit: contain;
+  background: var(--white);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+}
+
+.image-lightbox-close {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  color: var(--purple-950);
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+
+.image-lightbox-close:focus-visible {
+  outline: 3px solid var(--purple-300);
+  outline-offset: 3px;
+}
+
+.image-lightbox-caption {
+  max-width: min(760px, 100%);
+  margin: 0;
+  color: var(--white);
+  text-align: center;
+  line-height: 1.5;
+}
+
 .markdown table {
   width: 100%;
   margin: 14px 0;
@@ -1214,7 +1300,9 @@ a {
 
 .review-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+  min-width: 0;
 }
 
 .review-item {
@@ -1225,6 +1313,11 @@ a {
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--white);
+}
+
+.review-item,
+.review-item > * {
+  min-width: 0;
 }
 
 .review-item-incomplete {
@@ -1440,6 +1533,22 @@ a {
 
   .lesson-dialog {
     padding: 18px;
+  }
+
+  .markdown img {
+    border-radius: 8px;
+  }
+
+  .image-lightbox {
+    padding: 10px;
+  }
+
+  .image-lightbox-panel {
+    max-height: calc(100vh - 20px);
+  }
+
+  .image-lightbox-panel img {
+    max-height: calc(100vh - 84px);
   }
 }
 

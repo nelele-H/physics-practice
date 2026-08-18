@@ -4,6 +4,7 @@ import {
   escapeHtml,
   formatNumber,
   getSession,
+  initializeImagePreviews,
   setUserLabel,
   statusChip,
   toast,
@@ -20,6 +21,7 @@ const user = await getSession("student");
 if (!user) throw new Error("未登录");
 setUserLabel(user);
 bindLogout();
+initializeImagePreviews();
 
 let data;
 let activeFilter = "all";
